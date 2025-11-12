@@ -1,15 +1,7 @@
-library;
-
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart' as p;
-
-/// Public database handle
-late final Database _sharedDb;
+import 'package:quran_pages_with_ayah_detector/ayah_data.dart';
 
 /// Ayah segment info
 class Segment {
@@ -45,38 +37,8 @@ class QuranPageView extends StatefulWidget {
 }
 
 class _QuranPageViewState extends State<QuranPageView> {
-  bool _dbLoaded = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _initDb();
-  }
-
-  Future<void> _initDb() async {
-    final dbPath = await getDatabasesPath();
-    final dbFile = p.join(dbPath, 'ayahinfo_1920.db');
-    if (!await databaseExists(dbFile)) {
-      final bytes = (await rootBundle.load(
-        'assets/db/ayahinfo_1920.db',
-      ))
-          .buffer
-          .asUint8List();
-      await File(dbFile).writeAsBytes(bytes, flush: true);
-    }
-    _sharedDb = await openDatabase(dbFile);
-    if (mounted) setState(() => _dbLoaded = true);
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (!_dbLoaded) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFFFFBDB),
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
     return PageView.builder(
       itemCount: 604,
       reverse: true,
@@ -100,8 +62,6 @@ class _QuranPage extends StatefulWidget {
 
 class _QuranPageState extends State<_QuranPage> {
   List<Segment> _segments = [];
-  bool _loading = true;
-  final bool debugShowFill = true;
 
   @override
   void initState() {
@@ -110,11 +70,13 @@ class _QuranPageState extends State<_QuranPage> {
   }
 
   Future<void> _loadData() async {
-    final rows = await _sharedDb.query(
-      'glyphs',
-      where: 'page_number = ?',
-      whereArgs: [widget.pageNumber],
-    );
+    final rows = ayahRows.where((r) {
+      final pn = r['page_number'];
+      // some values might be strings; do safe compare
+      if (pn is int) return pn == widget.pageNumber;
+      if (pn is String) return int.tryParse(pn) == widget.pageNumber;
+      return false;
+    });
 
     final Map<String, Segment> grouped = {};
 
@@ -175,76 +137,61 @@ class _QuranPageState extends State<_QuranPage> {
     if (!mounted) return;
     setState(() {
       _segments = resolved;
-      _loading = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFFFFBDB),
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final containerW = constraints.maxWidth;
+        final containerH = constraints.maxHeight;
+        final imgW = 1920.0;
+        final imgH = 3106.0;
+        final scale = min(containerW / imgW, containerH / imgH);
+        final dispW = imgW * scale;
+        final dispH = imgH * scale;
+        final offsetX = (containerW - dispW) / 2.0;
+        final offsetY = (containerH - dispH) / 2.0;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFFFFBDB),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final containerW = constraints.maxWidth;
-          final containerH = constraints.maxHeight;
-          final imgW = 1920.0;
-          final imgH = 3106.0;
-          final scale = min(containerW / imgW, containerH / imgH);
-          final dispW = imgW * scale;
-          final dispH = imgH * scale;
-          final offsetX = (containerW - dispW) / 2.0;
-          final offsetY = (containerH - dispH) / 2.0;
-
-          return Stack(
-            children: [
-              Positioned(
-                left: offsetX,
-                top: offsetY,
-                width: dispW,
-                height: dispH,
-                child: Image.asset(
-                  'assets/pages/${widget.pageNumber}.png',
-                  fit: BoxFit.fill,
-                ),
+        return Stack(
+          children: [
+            Positioned(
+              left: offsetX,
+              top: offsetY,
+              width: dispW,
+              height: dispH,
+              child: Image.asset(
+                'assets/pages/${widget.pageNumber}.png',
+                fit: BoxFit.fill,
               ),
-              for (final s in _segments)
-                Positioned(
-                  left: offsetX + s.minX * scale,
-                  top: offsetY + s.minY * scale,
-                  width: s.width * scale,
-                  height: s.height * scale,
-                  child: GestureDetector(
-                    onTap: () {
-                      if (widget.onAyahTap != null) {
-                        widget.onAyahTap!(s.sura, s.ayah, widget.pageNumber);
-                      }
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: debugShowFill
-                            ? Colors.red.withOpacity(0.12)
-                            : Colors.transparent,
-                        border: Border.all(
-                          color: debugShowFill
-                              ? Colors.red.withOpacity(0.6)
-                              : Colors.transparent,
-                          width: 1,
-                        ),
+            ),
+            for (final s in _segments)
+              Positioned(
+                left: offsetX + s.minX * scale,
+                top: offsetY + s.minY * scale,
+                width: s.width * scale,
+                height: s.height * scale,
+                child: GestureDetector(
+                  onTap: () {
+                    if (widget.onAyahTap != null) {
+                      widget.onAyahTap!(s.sura, s.ayah, widget.pageNumber);
+                    }
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                      border: Border.all(
+                        color: Colors.transparent,
+                        width: 1,
                       ),
                     ),
                   ),
                 ),
-            ],
-          );
-        },
-      ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
