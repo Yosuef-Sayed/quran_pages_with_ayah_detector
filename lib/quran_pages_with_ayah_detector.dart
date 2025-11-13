@@ -28,8 +28,8 @@ class Segment {
 /// The main widget users can add
 class QuranPageView extends StatefulWidget {
   /// Callback when user taps an ayah
-  final void Function(int sura, int ayah, int pageNumber)? onAyahTap;
   final String pageImagePath;
+  final void Function(int sura, int ayah, int pageNumber)? onAyahTap;
 
   const QuranPageView({super.key, this.onAyahTap, required this.pageImagePath});
 
@@ -178,9 +178,7 @@ class _QuranPageState extends State<_QuranPage> {
                 height: s.height * scale,
                 child: GestureDetector(
                   onTap: () {
-                    if (widget.onAyahTap != null) {
-                      widget.onAyahTap!(s.sura, s.ayah, widget.pageNumber);
-                    }
+                    widget.onAyahTap!(s.sura, s.ayah, widget.pageNumber);
                   },
                   child: Container(
                     decoration: BoxDecoration(
