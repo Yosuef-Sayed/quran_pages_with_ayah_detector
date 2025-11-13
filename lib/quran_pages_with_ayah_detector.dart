@@ -29,8 +29,9 @@ class Segment {
 class QuranPageView extends StatefulWidget {
   /// Callback when user taps an ayah
   final void Function(int sura, int ayah, int pageNumber)? onAyahTap;
+  final String pageImagePath;
 
-  const QuranPageView({super.key, this.onAyahTap});
+  const QuranPageView({super.key, this.onAyahTap, required this.pageImagePath});
 
   @override
   State<QuranPageView> createState() => _QuranPageViewState();
@@ -45,6 +46,7 @@ class _QuranPageViewState extends State<QuranPageView> {
       itemBuilder: (c, i) => _QuranPage(
         pageNumber: i + 1,
         onAyahTap: widget.onAyahTap,
+        pageImagePath: widget.pageImagePath,
       ),
     );
   }
@@ -52,9 +54,11 @@ class _QuranPageViewState extends State<QuranPageView> {
 
 class _QuranPage extends StatefulWidget {
   final int pageNumber;
+  final String pageImagePath;
   final void Function(int sura, int ayah, int pageNumber)? onAyahTap;
 
-  const _QuranPage({required this.pageNumber, this.onAyahTap});
+  const _QuranPage(
+      {required this.pageNumber, this.onAyahTap, required this.pageImagePath});
 
   @override
   State<_QuranPage> createState() => _QuranPageState();
@@ -162,7 +166,7 @@ class _QuranPageState extends State<_QuranPage> {
               width: dispW,
               height: dispH,
               child: Image.asset(
-                'assets/pages/${widget.pageNumber}.png',
+                '${widget.pageImagePath}${widget.pageNumber}.png',
                 fit: BoxFit.fill,
               ),
             ),
