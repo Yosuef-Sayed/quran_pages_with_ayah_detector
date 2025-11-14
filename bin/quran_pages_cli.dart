@@ -13,6 +13,12 @@ import 'package:yaml_edit/yaml_edit.dart';
 
 /// ----- Utilities -----
 
+/// Runs a process and pipes its stdout/stderr to the current process while
+/// showing a simple spinner. Returns the process exit code, or `-1` on error.
+///
+/// [exe] is the executable, [args] are the arguments to pass. If
+/// [runInShell] is true the process is started in a shell. [spinnerLabel] is
+/// used to display a short-running spinner message.
 Future<int> _runProcessCaptureExit(String exe, List<String> args,
     {bool runInShell = true, String spinnerLabel = 'running'}) async {
   try {
@@ -30,6 +36,8 @@ Future<int> _runProcessCaptureExit(String exe, List<String> args,
   }
 }
 
+/// Start a simple text spinner that updates the console periodically.
+/// Returns the active [Timer] so the caller can cancel it.
 Timer _startSpinner(String label) {
   const chars = ['|', '/', '-', r'\'];
   int i = 0;
@@ -42,6 +50,13 @@ Timer _startSpinner(String label) {
 
 /// ----- Repo download helpers -----
 
+/// Attempts to find a repository root inside [tmpPath] that looks like the
+/// repo containing the page PNGs. The function prefers a `pages/` folder,
+/// then any folder with PNG files, and finally falls back to the largest
+/// child directory by file count.
+///
+/// Returns a path (may be the original [tmpPath] if no better candidate is
+/// found).
 String _findRepoRoot(String tmpPath) {
   // Prefer the tmpPath itself if it contains 'pages' or pngs
   final tmpDir = Directory(tmpPath);
@@ -90,6 +105,9 @@ String _findRepoRoot(String tmpPath) {
   return children.first.path;
 }
 
+/// Try to `git clone` [repoUrl] into [destPath].
+///
+/// Returns true on success, false otherwise.
 Future<bool> _tryGitClone(String repoUrl, String destPath) async {
   final gitCheck = await _runProcessCaptureExit('git', ['--version'],
       spinnerLabel: 'checking git');
@@ -100,6 +118,9 @@ Future<bool> _tryGitClone(String repoUrl, String destPath) async {
   return exit == 0;
 }
 
+/// Try to download [zipUrl] to [outPath] using `curl` or `wget`.
+///
+/// Returns true on success, false otherwise.
 Future<bool> _tryCurlOrWgetDownload(String zipUrl, String outPath) async {
   // try curl
   var exit = await _runProcessCaptureExit('curl', ['-L', '-o', outPath, zipUrl],
@@ -111,6 +132,9 @@ Future<bool> _tryCurlOrWgetDownload(String zipUrl, String outPath) async {
   return exit == 0;
 }
 
+/// Unzip [zipFilePath] into [extractTo] using the Dart `archive` package.
+///
+/// Returns true on success, false on error.
 Future<bool> _unzipUsingArchive(String zipFilePath, String extractTo) async {
   try {
     final bytes = await File(zipFilePath).readAsBytes();
@@ -133,6 +157,9 @@ Future<bool> _unzipUsingArchive(String zipFilePath, String extractTo) async {
   }
 }
 
+/// Download [zipUrl] with pure Dart HTTP client and unzip into [outDir].
+///
+/// Returns true on success, false on failure.
 Future<bool> _downloadZipHttpAndUnzip(String zipUrl, String outDir) async {
   try {
     final resp = await http.get(Uri.parse(zipUrl));
@@ -157,6 +184,11 @@ Future<bool> _downloadZipHttpAndUnzip(String zipUrl, String outDir) async {
 
 /// ----- Copy PNGs -----
 
+/// Copy PNG files found under [repoRoot] into [destPath] while preserving
+/// relative paths. If [overwriteAll] is false the user will be prompted for
+/// each existing file. If [dryRun] is true no writes are performed.
+///
+/// Returns a map with counts: {'copied': n, 'skipped': n, 'failed': n}.
 Future<Map<String, int>> _copyPngs(String repoRoot, String destPath,
     {required bool overwriteAll, required bool dryRun}) async {
   final srcRoot = Directory(repoRoot);
@@ -216,6 +248,10 @@ Future<Map<String, int>> _copyPngs(String repoRoot, String destPath,
 
 /// ----- pubspec editing (safe append-if-missing strategy) -----
 
+/// Ensures the `pubspec.yaml` at [projectRoot] contains an assets entry for
+/// [assetPath]. The function attempts to parse and modify YAML safely with
+/// `yaml_edit`. If parsing isn't possible it appends a safe `flutter/assets`
+/// block at the end of the file. If [dryRun] is true no file writes occur.
 Future<void> _ensurePubspecHasAsset(String projectRoot, String assetPath,
     {required bool dryRun}) async {
   final pubFile = File(p.join(projectRoot, 'pubspec.yaml'));
@@ -343,6 +379,12 @@ Future<void> _ensurePubspecHasAsset(String projectRoot, String assetPath,
 
 /// ----- Main handler -----
 
+/// High-level handler that fetches pages from [repoUrl], copies PNGs into
+/// [destRelativePath] (relative to the current working directory), updates the
+/// `pubspec.yaml` assets block, and optionally runs `flutter pub get`.
+///
+/// If [overwriteAll] is true existing files are overwritten without prompting.
+/// If [dryRun] is true no writes are made and actions are printed instead.
 Future<void> _handleFetchPages(String repoUrl, String destRelativePath,
     {required bool overwriteAll, required bool dryRun}) async {
   final cwd = Directory.current.path;
@@ -444,6 +486,7 @@ Future<void> _handleFetchPages(String repoUrl, String destRelativePath,
 
 /// ----- CLI -----
 
+/// Prints help/usage for the CLI based on [parser].
 void _printHelp(ArgParser parser) {
   print('quran_pages_cli - fetch quran pages into your Flutter project assets');
   print('');
@@ -453,6 +496,13 @@ void _printHelp(ArgParser parser) {
   print(parser.usage);
 }
 
+/// Entry point for the CLI.
+///
+/// Accepts a `fetch-pages` subcommand with options:
+/// - `--repo` / `-r` : Git repository URL to fetch from.
+/// - `--dest` / `-d` : Destination assets path relative to project root (default `assets/pages`).
+/// - `--yes` / `-y` : Overwrite without prompting.
+/// - `--dry-run` : Print actions without performing writes.
 Future<void> main(List<String> args) async {
   final parser = ArgParser();
   parser.addCommand('fetch-pages')
