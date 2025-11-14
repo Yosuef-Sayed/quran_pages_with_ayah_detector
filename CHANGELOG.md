@@ -2,6 +2,10 @@
 
 Initial Stable Releases
 
+## 0.1.2
+
+- Bug fix.
+
 ## 0.1.1
 
 - Ayah Selection highlight fix.
@@ -12,6 +16,8 @@ Initial Stable Releases
 - First stable release of **quran_pages_with_ayah_detector**.
 - Ready to be integrated into other Flutter apps.
 - Added UI customizations and Ayah long-press splash effect.
+
+#
 
 # Alpha Releases
 
