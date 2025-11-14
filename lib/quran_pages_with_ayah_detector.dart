@@ -31,7 +31,8 @@ class QuranPageView extends StatefulWidget {
   final String pageImagePath;
   final void Function(int sura, int ayah, int pageNumber)? onAyahTap;
 
-  const QuranPageView({super.key, this.onAyahTap, required this.pageImagePath});
+  const QuranPageView(
+      {super.key, this.onAyahTap, this.pageImagePath = "assets/pages/"});
 
   @override
   State<QuranPageView> createState() => _QuranPageViewState();
