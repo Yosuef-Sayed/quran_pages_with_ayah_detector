@@ -7,9 +7,17 @@ environment:
   sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
+  archive: ^4.0.7
+  args: ^2.7.0
   flutter:
     sdk: flutter
+  http: ^1.6.0
   path: ^1.8.3
+  yaml: ^3.1.3
+  yaml_edit: ^2.2.2
 
 dev_dependencies:
   flutter_lints: ^6.0.0
+
+executables:
+  quran_pages_cli: quran_pages_cli
