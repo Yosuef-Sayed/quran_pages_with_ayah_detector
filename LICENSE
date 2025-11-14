@@ -19,15 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Additional Notes (Not part of the MIT License):
-
-The Quran images and ayah data used in this package are originally from Quran.com
-and are permitted for use.
-
-I have re-engineered and reorganized this data to make it simple,
-optimized, and Flutter-friendly, so that anyone can use it freely.
-
-The data and package must be used only in a permissible, legal, and non-prohibited way.
