@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -29,10 +31,18 @@ class Segment {
 class QuranPageView extends StatefulWidget {
   /// Callback when user taps an ayah
   final String pageImagePath;
+  final bool debuggingMode;
+  final bool themeModeAdaption;
+  final Color textColor;
   final void Function(int sura, int ayah, int pageNumber)? onAyahTap;
 
   const QuranPageView(
-      {super.key, this.onAyahTap, this.pageImagePath = "assets/pages/"});
+      {super.key,
+      this.onAyahTap,
+      this.pageImagePath = "assets/pages/",
+      this.debuggingMode = false,
+      this.themeModeAdaption = true,
+      this.textColor = Colors.black});
 
   @override
   State<QuranPageView> createState() => _QuranPageViewState();
@@ -48,6 +58,9 @@ class _QuranPageViewState extends State<QuranPageView> {
         pageNumber: i + 1,
         onAyahTap: widget.onAyahTap,
         pageImagePath: widget.pageImagePath,
+        debuggingMode: widget.debuggingMode,
+        themeModeAdaption: widget.themeModeAdaption,
+        textColor: widget.textColor,
       ),
     );
   }
@@ -56,10 +69,18 @@ class _QuranPageViewState extends State<QuranPageView> {
 class _QuranPage extends StatefulWidget {
   final int pageNumber;
   final String pageImagePath;
+  final bool debuggingMode;
+  final bool themeModeAdaption;
+  final Color textColor;
   final void Function(int sura, int ayah, int pageNumber)? onAyahTap;
 
   const _QuranPage(
-      {required this.pageNumber, this.onAyahTap, required this.pageImagePath});
+      {required this.pageNumber,
+      this.onAyahTap,
+      required this.pageImagePath,
+      required this.debuggingMode,
+      required this.themeModeAdaption,
+      required this.textColor});
 
   @override
   State<_QuranPage> createState() => _QuranPageState();
@@ -169,6 +190,9 @@ class _QuranPageState extends State<_QuranPage> {
               child: Image.asset(
                 '${widget.pageImagePath}${widget.pageNumber}.png',
                 fit: BoxFit.fill,
+                color: widget.themeModeAdaption
+                    ? IconTheme.of(context).color
+                    : widget.textColor,
               ),
             ),
             for (final s in _segments)
@@ -177,15 +201,19 @@ class _QuranPageState extends State<_QuranPage> {
                 top: offsetY + s.minY * scale,
                 width: s.width * scale,
                 height: s.height * scale,
-                child: GestureDetector(
-                  onTap: () {
+                child: InkWell(
+                  onLongPress: () {
                     widget.onAyahTap!(s.sura, s.ayah, widget.pageNumber);
                   },
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.transparent,
+                      color: widget.debuggingMode
+                          ? Colors.red.withOpacity(.25)
+                          : Colors.transparent,
                       border: Border.all(
-                        color: Colors.transparent,
+                        color: widget.debuggingMode
+                            ? Colors.red.withOpacity(.5)
+                            : Colors.transparent,
                         width: 1,
                       ),
                     ),
