@@ -78,8 +78,11 @@ class QuranPageView extends StatefulWidget {
   /// Whether to show the page number at the bottom of the page.
   final bool showPageNumber;
 
-  /// The text color used for page numbers and top bar text when [themeModeAdaption] is off.
-  final Color textColor;
+  /// The text color used for Quran page background image itself when [themeModeAdaption] is off.
+  final Color quranTextColor;
+
+  /// The color for the text in the top bar (Juz and Surah names).
+  final Color topBarTextColor;
 
   /// Callback function triggered when an ayah is tapped.
   /// Provides the surah number, ayah number, and the current page number.
@@ -100,26 +103,50 @@ class QuranPageView extends StatefulWidget {
   /// Whether to show a search icon in the top bar.
   final bool showSearchIcon;
 
-  /// Custom color for the search icon.
-  final Color? searchIconColor;
+  /// Custom color for the search icon in the top bar.
+  final Color searchIconColor;
 
   /// Background color for the search overlay sheet.
   final Color searchSheetBackgroundColor;
 
-  /// Text color for search results in the overlay.
+  /// Color for the "X" and "Lens" icons in the search sheet.
+  final Color searchSheetIconsColor;
+
+  /// Text color for the verse text in search results.
   final Color searchResultTextColor;
 
-  /// Color for supplementary info in search results (e.g., Surah name, page number).
-  final Color? searchResultInfoColor;
+  /// Color for supplementary info in search results (Surah name, page number).
+  final Color searchResultInfoColor;
 
   /// Hint text displayed in the search input field.
   final String searchHintText;
 
-  /// Background color for the search input field.
-  final Color? searchFieldBackgroundColor;
+  /// Color for the hint text inside the search field.
+  final Color searchFieldHintTextColor;
 
-  /// Background color for the currently selected search result item.
-  final Color? searchResultSelectionColor;
+  /// Color for the user input text in the search field.
+  final Color searchFieldTextColor;
+
+  /// Color for the selection highlight, cursor, and selection handles in the search field.
+  final Color searchFieldHandleColor;
+
+  /// Background color for the search input field.
+  final Color searchFieldBackgroundColor;
+
+  /// The height multiplier for the search result sheet when expanded (0.0 to 1.0).
+  final double searchSheetHeightMultiplier;
+
+  /// The color for the grouping titles in search results (e.g., "Number of Surahs").
+  final Color searchResultGroupTitleColor;
+
+  /// The color of the page number text at the bottom.
+  final Color pageNumberColor;
+
+  /// Background color for the search overlay sheet in dark mode.
+  final Color searchSheetDarkBackgroundColor;
+
+  /// Background color for the search input field in dark mode.
+  final Color searchFieldDarkBackgroundColor;
 
   /// Creates a [QuranPageView] with customizable behavior and styling.
   const QuranPageView({
@@ -130,20 +157,29 @@ class QuranPageView extends StatefulWidget {
     this.pageImagePath = "assets/pages/",
     this.fontFamilyName = "suraNameFont",
     this.debuggingMode = false,
-    this.themeModeAdaption = true,
+    this.themeModeAdaption = false,
     this.showPageTopBar = true,
     this.showPageNumber = true,
-    this.textColor = Colors.black,
+    this.quranTextColor = Colors.black,
+    this.topBarTextColor = Colors.black,
     this.highlightColor = Colors.blue,
     this.highlightDuration = const Duration(milliseconds: 220),
     this.showSearchIcon = true,
-    this.searchIconColor,
+    this.searchIconColor = Colors.black,
     this.searchSheetBackgroundColor = Colors.white,
-    this.searchResultTextColor = Colors.black87,
-    this.searchResultInfoColor,
-    this.searchHintText = "البحث عن آية...",
-    this.searchFieldBackgroundColor,
-    this.searchResultSelectionColor,
+    this.searchSheetDarkBackgroundColor = const Color(0xFF1E1E1E),
+    this.searchSheetIconsColor = Colors.black,
+    this.searchResultTextColor = Colors.black,
+    this.searchResultInfoColor = Colors.blue,
+    this.searchHintText = "البحث في القرآن...",
+    this.searchFieldHintTextColor = Colors.black54,
+    this.searchFieldTextColor = Colors.black,
+    this.searchFieldHandleColor = Colors.black,
+    this.searchFieldBackgroundColor = const Color(0xFFF5F5F5),
+    this.searchFieldDarkBackgroundColor = const Color(0xFF2C2C2C),
+    this.searchSheetHeightMultiplier = 0.6,
+    this.pageNumberColor = Colors.black,
+    this.searchResultGroupTitleColor = Colors.black87,
   });
 
   @override
@@ -175,6 +211,9 @@ class _QuranPageViewState extends State<QuranPageView> {
   /// The page number of the currently highlighted ayah.
   int? _highlightedPage;
 
+  /// A map that caches which surahs start on each page.
+  final Map<int, List<int>> _surasStartingOnPage = {};
+
   @override
 
   /// Initializes the page controller and builds the search location map.
@@ -182,6 +221,7 @@ class _QuranPageViewState extends State<QuranPageView> {
     super.initState();
     _pageController = PageController();
     _buildPageAyahMap();
+    _buildSurasStartingOnPageMap();
   }
 
   @override
@@ -211,6 +251,52 @@ class _QuranPageViewState extends State<QuranPageView> {
     });
   }
 
+  /// Builds the internal [_surasStartingOnPage] map.
+  void _buildSurasStartingOnPageMap() {
+    for (int s = 1; s <= 114; s++) {
+      final p = suraAyahToPage[s]?[1] ?? 1;
+      _surasStartingOnPage.putIfAbsent(p, () => []).add(s);
+    }
+    _surasStartingOnPage.forEach((page, suras) {
+      suras.sort();
+    });
+  }
+
+  /// Builds a centered title for grouping search results (e.g., "Number of Surahs").
+  Widget _buildGroupTitle(String title, Color color) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Text(
+          title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+          textDirection: TextDirection.rtl,
+        ),
+      ),
+    );
+  }
+
+  /// Returns the stylized glyph for a given surah number.
+  /// Handles cases where multiple surahs share a page by applying an offset
+  /// to the page's base glyph.
+  String _getSurahGlyph(int suraNumber) {
+    final int page = suraAyahToPage[suraNumber]?[1] ?? 1;
+    final String baseGlyph = suraGlyph[page] ?? "";
+    if (baseGlyph.isEmpty) return "";
+
+    // Find the first surah that STARTS on this page
+    final int firstSuraStartingOnPage =
+        _surasStartingOnPage[page]?[0] ?? suraNumber;
+
+    // The glyphs are sequential by surah number
+    final int offset = suraNumber - firstSuraStartingOnPage;
+    return String.fromCharCode(baseGlyph.codeUnitAt(0) + offset);
+  }
+
   /// Handles changes to the search query text, applying a debounce delay.
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
@@ -228,15 +314,32 @@ class _QuranPageViewState extends State<QuranPageView> {
     });
   }
 
-  /// Executes the search logic against [quranCleanPlain].
+  /// Executes the search logic against [quranCleanPlain] and Surah names.
   void _performSearch(String query) {
-    final results = quranCleanPlain.where((verse) {
-      final content = verse['content'] as String;
-      return content.contains(query);
-    }).toList();
+    // 1. Search for Surah names
+    final List<Map<String, dynamic>> suraResults = [];
+    for (int i = 1; i <= 114; i++) {
+      final suraName = quran.getSurahNameArabic(i);
+      if (suraName.contains(query)) {
+        suraResults.add({
+          'type': 'surah',
+          'surah_number': i,
+          'surah_name': suraName,
+        });
+      }
+    }
+
+    // 2. Search for verses
+    final verseResults = quranCleanPlain
+        .where((verse) {
+          final content = verse['content'] as String;
+          return content.contains(query);
+        })
+        .map((v) => {...v, 'type': 'verse'})
+        .toList();
 
     setState(() {
-      _searchResults = results;
+      _searchResults = [...suraResults, ...verseResults];
     });
   }
 
@@ -264,7 +367,7 @@ class _QuranPageViewState extends State<QuranPageView> {
       setState(() {
         _isSearchOpen = false;
         _searchResults = [];
-        _highlightedAyahKey = '${surah}_${ayah}';
+        _highlightedAyahKey = '${surah}_$ayah';
         _highlightedPage = page;
       });
     }
@@ -282,37 +385,55 @@ class _QuranPageViewState extends State<QuranPageView> {
             controller: _pageController,
             itemCount: 604,
             reverse: true,
-            itemBuilder: (c, i) => _QuranPage(
-              pageNumber: i + 1,
-              onAyahTap: (s, a, p) {
-                if (widget.onAyahTap != null) widget.onAyahTap!(s, a, p);
-                setState(() {
-                  _highlightedAyahKey = null;
-                  _highlightedPage = null;
-                });
-              },
-              onSuraNameTap: widget.onSuraNameTap,
-              onJuzNumberTap: widget.onJuzNumberTap,
-              onSearchTap: () {
-                setState(() {
-                  _isSearchOpen = true;
-                  _searchResults = [];
-                });
-              },
-              pageImagePath: widget.pageImagePath,
-              fontFamilyName: widget.fontFamilyName,
-              debuggingMode: widget.debuggingMode,
-              themeModeAdaption: widget.themeModeAdaption,
-              showPageTopBar: widget.showPageTopBar,
-              showPageNumber: widget.showPageNumber,
-              textColor: widget.textColor,
-              highlightColor: widget.highlightColor,
-              highlightDuration: widget.highlightDuration,
-              showSearchIcon: widget.showSearchIcon,
-              searchIconColor: widget.searchIconColor,
-              highlightedAyahKey:
-                  _highlightedPage == (i + 1) ? _highlightedAyahKey : null,
-            ),
+            itemBuilder: (c, i) {
+              final page = i + 1;
+              return _QuranPage(
+                pageNumber: page,
+                onAyahTap: (s, a, p) {
+                  if (widget.onAyahTap != null) widget.onAyahTap!(s, a, p);
+                  if (mounted) {
+                    setState(() {
+                      _highlightedAyahKey = null;
+                      _highlightedPage = null;
+                    });
+                  }
+                },
+                onSuraNameTap: widget.onSuraNameTap,
+                onJuzNumberTap: widget.onJuzNumberTap,
+                onSearchTap: () {
+                  if (mounted) {
+                    setState(() {
+                      _isSearchOpen = true;
+                      _searchResults = [];
+                    });
+                  }
+                },
+                pageImagePath: widget.pageImagePath,
+                fontFamilyName: widget.fontFamilyName,
+                debuggingMode: widget.debuggingMode,
+                themeModeAdaption: widget.themeModeAdaption,
+                showPageTopBar: widget.showPageTopBar,
+                showPageNumber: widget.showPageNumber,
+                quranTextColor: widget.quranTextColor,
+                topBarTextColor: widget.topBarTextColor,
+                pageNumberColor: widget.pageNumberColor,
+                searchResultGroupTitleColor: widget.searchResultGroupTitleColor,
+                highlightColor: widget.highlightColor,
+                highlightDuration: widget.highlightDuration,
+                showSearchIcon: widget.showSearchIcon,
+                searchIconColor: widget.searchIconColor,
+                highlightedAyahKey:
+                    _highlightedPage == page ? _highlightedAyahKey : null,
+                onClearSelection: () {
+                  if (mounted) {
+                    setState(() {
+                      _highlightedAyahKey = null;
+                      _highlightedPage = null;
+                    });
+                  }
+                },
+              );
+            },
           ),
         ),
         if (_isSearchOpen) _buildSearchOverlay(),
@@ -323,8 +444,49 @@ class _QuranPageViewState extends State<QuranPageView> {
   /// Builds the search overlay sheet when [_isSearchOpen] is true.
   Widget _buildSearchOverlay() {
     final double screenHeight = MediaQuery.of(context).size.height;
-    final double sheetHeight =
-        _searchResults.isEmpty ? 150 : (screenHeight * 0.6).clamp(150, 500);
+    final double sheetHeight = _searchResults.isEmpty
+        ? 150
+        : (screenHeight * widget.searchSheetHeightMultiplier)
+            .clamp(150, screenHeight * 0.9);
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final Color effectiveSheetBg = widget.themeModeAdaption
+        ? (isDark
+            ? widget.searchSheetDarkBackgroundColor
+            : widget.searchSheetBackgroundColor)
+        : widget.searchSheetBackgroundColor;
+    final Color effectiveIconsColor = widget.themeModeAdaption
+        ? (isDark ? Colors.white : Colors.black)
+        : widget.searchSheetIconsColor;
+    final Color effectiveResultTextColor = widget.themeModeAdaption
+        ? (isDark ? Colors.white : Colors.black)
+        : widget.searchResultTextColor;
+    final Color effectiveResultInfoColor = widget.themeModeAdaption
+        ? (isDark ? Colors.white : Colors.black)
+        : widget.searchResultInfoColor;
+    final Color effectiveFieldHintColor = widget.themeModeAdaption
+        ? (isDark
+            ? Colors.white.withOpacity(0.5)
+            : Colors.black.withOpacity(0.5))
+        : widget.searchFieldHintTextColor;
+    final Color effectiveFieldTextColor = widget.themeModeAdaption
+        ? (isDark ? Colors.white : Colors.black)
+        : widget.searchFieldTextColor;
+    final Color effectiveHandleColor = widget.themeModeAdaption
+        ? (isDark ? Colors.white : Colors.black)
+        : widget.searchFieldHandleColor;
+    final Color effectiveFieldBg = widget.themeModeAdaption
+        ? (isDark
+            ? widget.searchFieldDarkBackgroundColor
+            : widget.searchFieldBackgroundColor)
+        : widget.searchFieldBackgroundColor;
+    final Color effectiveGroupTitleColor = widget.themeModeAdaption
+        ? (isDark ? Colors.white70 : Colors.black87)
+        : widget.searchResultGroupTitleColor;
+
+    final suraCount = _searchResults.where((r) => r['type'] == 'surah').length;
+    final verseCount = _searchResults.where((r) => r['type'] == 'verse').length;
 
     return Stack(
       children: [
@@ -348,7 +510,7 @@ class _QuranPageViewState extends State<QuranPageView> {
             child: Container(
               margin: const EdgeInsets.only(top: 10, left: 16, right: 16),
               decoration: BoxDecoration(
-                color: widget.searchSheetBackgroundColor,
+                color: effectiveSheetBg,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
@@ -363,35 +525,40 @@ class _QuranPageViewState extends State<QuranPageView> {
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(12.0),
-                    child: TextField(
-                      autofocus: true,
-                      onChanged: _onSearchChanged,
-                      textDirection: TextDirection.rtl,
-                      cursorColor: widget.highlightColor,
-                      style: TextStyle(color: widget.searchResultTextColor),
-                      decoration: InputDecoration(
-                        hintText: widget.searchHintText,
-                        hintTextDirection: TextDirection.rtl,
-                        hintStyle: TextStyle(
-                            color:
-                                widget.searchResultTextColor.withOpacity(0.5)),
-                        prefixIcon: Icon(Icons.search,
-                            color: widget.searchIconColor ?? widget.textColor),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () {
-                            setState(() {
-                              _isSearchOpen = false;
-                              _searchResults = [];
-                            });
-                          },
+                    child: Theme(
+                      data: Theme.of(context).copyWith(
+                        textSelectionTheme: TextSelectionThemeData(
+                          cursorColor: effectiveHandleColor,
+                          selectionColor: effectiveHandleColor.withOpacity(0.3),
+                          selectionHandleColor: effectiveHandleColor,
                         ),
-                        filled: true,
-                        fillColor: widget.searchFieldBackgroundColor ??
-                            Colors.grey.withOpacity(0.1),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide.none,
+                      ),
+                      child: TextField(
+                        autofocus: true,
+                        onChanged: _onSearchChanged,
+                        textDirection: TextDirection.rtl,
+                        style: TextStyle(color: effectiveFieldTextColor),
+                        decoration: InputDecoration(
+                          hintText: widget.searchHintText,
+                          hintTextDirection: TextDirection.rtl,
+                          hintStyle: TextStyle(color: effectiveFieldHintColor),
+                          prefixIcon:
+                              Icon(Icons.search, color: effectiveIconsColor),
+                          suffixIcon: IconButton(
+                            icon: Icon(Icons.close, color: effectiveIconsColor),
+                            onPressed: () {
+                              setState(() {
+                                _isSearchOpen = false;
+                                _searchResults = [];
+                              });
+                            },
+                          ),
+                          filled: true,
+                          fillColor: effectiveFieldBg,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: BorderSide.none,
+                          ),
                         ),
                       ),
                     ),
@@ -400,80 +567,168 @@ class _QuranPageViewState extends State<QuranPageView> {
                     ConstrainedBox(
                       constraints: BoxConstraints(maxHeight: sheetHeight - 80),
                       child: ListView.builder(
+                        padding: EdgeInsets.zero,
                         shrinkWrap: true,
-                        itemCount: _searchResults.length,
+                        itemCount: _searchResults.length +
+                            (suraCount > 0 ? 1 : 0) +
+                            (verseCount > 0 ? 1 : 0),
                         itemBuilder: (context, index) {
-                          final verse = _searchResults[index];
-                          final surah = verse['surah_number'] as int;
-                          final ayah = verse['verse_number'] as int;
-                          final page = suraAyahToPage[surah]?[ayah] ?? 1;
-                          final qfcText = _getQfcVerse(surah, ayah, page);
-                          final fontFamily =
-                              'QCF_P${page.toString().padLeft(3, '0')}';
+                          // Logic to decide if we show a header or a result
+                          if (suraCount > 0 && index == 0) {
+                            return _buildGroupTitle(
+                                "عدد نتائج السور: ${ArabicNumbers().convert(suraCount)}",
+                                effectiveGroupTitleColor);
+                          }
 
-                          return FutureBuilder(
-                            future: FontManager.loadFont(page),
-                            builder: (context, snapshot) {
-                              return InkWell(
-                                onTap: () =>
-                                    _handleSearchResultTap(page, surah, ayah),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 12),
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                        bottom: BorderSide(
-                                            color:
-                                                Colors.grey.withOpacity(0.1))),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Directionality(
-                                        textDirection: TextDirection.rtl,
-                                        child: Text(
-                                          qfcText,
-                                          style: TextStyle(
-                                            fontFamily: fontFamily,
-                                            fontSize: 22,
-                                            color: widget.searchResultTextColor,
-                                          ),
-                                          textAlign: TextAlign.right,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        textDirection: TextDirection.rtl,
-                                        children: [
-                                          Text(
-                                            'سورة ${quran.getSurahNameArabic(surah)}',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.bold,
-                                              color: widget
-                                                      .searchResultInfoColor ??
-                                                  widget.highlightColor,
-                                            ),
-                                          ),
-                                          Text(
-                                            'صفحة ${ArabicNumbers().convert(page)}',
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              color: widget
-                                                  .searchResultTextColor
-                                                  .withOpacity(0.6),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
+                          if (suraCount > 0 &&
+                              verseCount > 0 &&
+                              index == suraCount + 1) {
+                            return _buildGroupTitle(
+                                "عدد نتائج الآيات: ${ArabicNumbers().convert(verseCount)}",
+                                effectiveGroupTitleColor);
+                          }
+
+                          if (suraCount == 0 && verseCount > 0 && index == 0) {
+                            return _buildGroupTitle(
+                                "عدد نتائج الآيات: ${ArabicNumbers().convert(verseCount)}",
+                                effectiveGroupTitleColor);
+                          }
+
+                          // Calculate the actual result index
+                          int resultIndex = index;
+                          if (suraCount > 0) {
+                            resultIndex--; // Adjust for sura title
+                            if (verseCount > 0 && index > suraCount) {
+                              resultIndex--; // Adjust for verse title
+                            }
+                          } else if (verseCount > 0) {
+                            resultIndex--; // Adjust for verse title
+                          }
+
+                          final result = _searchResults[resultIndex];
+                          final isSurah = result['type'] == 'surah';
+
+                          if (isSurah) {
+                            final surahNum = result['surah_number'] as int;
+                            // Find the first page of this surah
+                            final firstAyahPage =
+                                suraAyahToPage[surahNum]?[1] ?? 1;
+                            final int page = firstAyahPage;
+
+                            return InkWell(
+                              onTap: () {
+                                if (mounted) {
+                                  setState(() {
+                                    _isSearchOpen = false;
+                                    _searchResults = [];
+                                    _highlightedAyahKey = null;
+                                    _highlightedPage = null;
+                                  });
+                                }
+                                _pageController.jumpToPage(page - 1);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                      bottom: BorderSide(
+                                          color: Colors.grey.withOpacity(0.1))),
                                 ),
-                              );
-                            },
-                          );
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  textDirection: TextDirection.rtl,
+                                  children: [
+                                    Text(
+                                      "${_getSurahGlyph(surahNum)}\u005C",
+                                      style: TextStyle(
+                                        fontFamily: widget.fontFamilyName,
+                                        fontSize: 24,
+                                        color: effectiveResultTextColor,
+                                      ),
+                                    ),
+                                    Text(
+                                      'صفحة ${ArabicNumbers().convert(page)}',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: effectiveResultInfoColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          } else {
+                            final surah = result['surah_number'] as int;
+                            final ayah = result['verse_number'] as int;
+                            final page = suraAyahToPage[surah]?[ayah] ?? 1;
+                            final qfcText = _getQfcVerse(surah, ayah, page);
+                            final fontFamily =
+                                'QCF_P${page.toString().padLeft(3, '0')}';
+
+                            return FutureBuilder(
+                              future: FontManager.loadFont(page),
+                              builder: (context, snapshot) {
+                                return InkWell(
+                                  onTap: () =>
+                                      _handleSearchResultTap(page, surah, ayah),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                          bottom: BorderSide(
+                                              color: Colors.grey
+                                                  .withOpacity(0.1))),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Directionality(
+                                          textDirection: TextDirection.rtl,
+                                          child: Text(
+                                            qfcText,
+                                            style: TextStyle(
+                                              fontFamily: fontFamily,
+                                              fontSize: 22,
+                                              color: effectiveResultTextColor,
+                                            ),
+                                            textAlign: TextAlign.right,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          textDirection: TextDirection.rtl,
+                                          children: [
+                                            Text(
+                                              "${_getSurahGlyph(surah)}\u005C",
+                                              style: TextStyle(
+                                                fontSize: 20,
+                                                fontFamily:
+                                                    widget.fontFamilyName,
+                                                color: effectiveResultInfoColor,
+                                              ),
+                                            ),
+                                            Text(
+                                              'صفحة ${ArabicNumbers().convert(page)}',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: effectiveResultInfoColor,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          }
                         },
                       ),
                     ),
@@ -510,8 +765,17 @@ class _QuranPage extends StatefulWidget {
   /// Whether to show the page number.
   final bool showPageNumber;
 
-  /// The text color to use.
-  final Color textColor;
+  /// The text color used for the Quran page image.
+  final Color quranTextColor;
+
+  /// The text color used for top bar text (Juz and Surah names).
+  final Color topBarTextColor;
+
+  /// The text color used for the page number text at the bottom.
+  final Color pageNumberColor;
+
+  /// The color for the grouping titles in search results.
+  final Color searchResultGroupTitleColor;
 
   /// Callback for tapping an ayah.
   final void Function(int sura, int ayah, int pageNumber)? onAyahTap;
@@ -532,13 +796,16 @@ class _QuranPage extends StatefulWidget {
   final bool showSearchIcon;
 
   /// Custom color for the search icon.
-  final Color? searchIconColor;
+  final Color searchIconColor;
 
   /// Callback when the search icon is tapped.
   final VoidCallback? onSearchTap;
 
   /// The key of the ayah currently highlighted on this page.
   final String? highlightedAyahKey;
+
+  /// Callback when the ayah selection is cleared.
+  final VoidCallback? onClearSelection;
 
   /// Creates a [_QuranPage] with the given configuration.
   const _QuranPage({
@@ -553,12 +820,16 @@ class _QuranPage extends StatefulWidget {
     required this.themeModeAdaption,
     required this.showPageTopBar,
     required this.showPageNumber,
-    required this.textColor,
+    required this.quranTextColor,
+    required this.topBarTextColor,
+    required this.pageNumberColor,
+    required this.searchResultGroupTitleColor,
     required this.highlightColor,
     required this.highlightDuration,
     required this.showSearchIcon,
-    this.searchIconColor,
+    required this.searchIconColor,
     this.highlightedAyahKey,
+    this.onClearSelection,
   });
 
   @override
@@ -672,6 +943,9 @@ class _QuranPageState extends State<_QuranPage> {
       setState(() {
         _selectedAyahKey = null;
       });
+      if (widget.onClearSelection != null) {
+        widget.onClearSelection!();
+      }
     }
   }
 
@@ -729,7 +1003,7 @@ class _QuranPageState extends State<_QuranPage> {
                                       fontSize: 22,
                                       color: widget.themeModeAdaption
                                           ? IconTheme.of(context).color
-                                          : widget.textColor,
+                                          : widget.topBarTextColor,
                                       fontFamily: widget.fontFamilyName),
                                 ),
                               ),
@@ -738,10 +1012,7 @@ class _QuranPageState extends State<_QuranPage> {
                                   onTap: widget.onSearchTap,
                                   child: Icon(
                                     Icons.search,
-                                    color: widget.searchIconColor ??
-                                        (widget.themeModeAdaption
-                                            ? IconTheme.of(context).color
-                                            : widget.textColor),
+                                    color: widget.searchIconColor,
                                     size: 26,
                                   ),
                                 ),
@@ -757,7 +1028,7 @@ class _QuranPageState extends State<_QuranPage> {
                                       fontSize: 22,
                                       color: widget.themeModeAdaption
                                           ? IconTheme.of(context).color
-                                          : widget.textColor,
+                                          : widget.topBarTextColor,
                                       fontFamily: widget.fontFamilyName),
                                 ),
                               ),
@@ -778,7 +1049,7 @@ class _QuranPageState extends State<_QuranPage> {
                         fit: BoxFit.fill,
                         color: widget.themeModeAdaption
                             ? IconTheme.of(context).color
-                            : widget.textColor,
+                            : widget.quranTextColor,
                       ),
                       for (final s in _segments)
                         Positioned(
@@ -848,7 +1119,7 @@ class _QuranPageState extends State<_QuranPage> {
                                 fontSize: 18,
                                 color: widget.themeModeAdaption
                                     ? IconTheme.of(context).color
-                                    : widget.textColor),
+                                    : widget.pageNumberColor),
                             textDirection: TextDirection.rtl,
                           ),
                         ),
@@ -889,7 +1160,7 @@ class _QuranPageState extends State<_QuranPage> {
                                   fontSize: 22,
                                   color: widget.themeModeAdaption
                                       ? IconTheme.of(context).color
-                                      : widget.textColor,
+                                      : widget.topBarTextColor,
                                   fontFamily: widget.fontFamilyName),
                             ),
                           ),
@@ -898,10 +1169,9 @@ class _QuranPageState extends State<_QuranPage> {
                               onTap: widget.onSearchTap,
                               child: Icon(
                                 Icons.search,
-                                color: widget.searchIconColor ??
-                                    (widget.themeModeAdaption
-                                        ? IconTheme.of(context).color
-                                        : widget.textColor),
+                                color: widget.themeModeAdaption
+                                    ? IconTheme.of(context).color
+                                    : widget.searchIconColor,
                                 size: 26,
                               ),
                             ),
@@ -917,7 +1187,7 @@ class _QuranPageState extends State<_QuranPage> {
                                   fontSize: 22,
                                   color: widget.themeModeAdaption
                                       ? IconTheme.of(context).color
-                                      : widget.textColor,
+                                      : widget.topBarTextColor,
                                   fontFamily: widget.fontFamilyName),
                             ),
                           ),
@@ -941,7 +1211,7 @@ class _QuranPageState extends State<_QuranPage> {
                       fit: BoxFit.contain,
                       color: widget.themeModeAdaption
                           ? IconTheme.of(context).color
-                          : widget.textColor,
+                          : widget.quranTextColor,
                     ),
                   ),
                   for (final s in _segments)
@@ -1009,7 +1279,7 @@ class _QuranPageState extends State<_QuranPage> {
                             fontSize: 18,
                             color: widget.themeModeAdaption
                                 ? IconTheme.of(context).color
-                                : widget.textColor),
+                                : widget.pageNumberColor),
                         textDirection: TextDirection.rtl,
                       ),
                     ),

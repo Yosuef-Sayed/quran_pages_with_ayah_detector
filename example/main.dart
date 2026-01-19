@@ -35,8 +35,6 @@ class _MainAppState extends State<MainApp> {
           searchSheetBackgroundColor: Colors.white,
           searchResultTextColor: Colors.black87,
           searchResultInfoColor: Colors.grey, // Custom info text color
-          searchResultSelectionColor:
-              Colors.teal.withOpacity(0.1), // Custom selection color
           searchIconColor: Colors.teal,
           highlightColor: Colors.teal,
           // NOTE: The search feature requires QCF fonts to be registered in pubspec.yaml.

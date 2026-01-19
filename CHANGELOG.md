@@ -2,6 +2,24 @@
 
 ## Initial Releases
 
+## 1.1.1
+
+- **Search Enhancements**:
+  - Added Surah name search (prioritized in results).
+  - **Enhanced Search Functionality**:
+  - Prioritized Surah names in search results with stylized calligraphic glyphs.
+  - Implemented a robust Surah-to-glyph mapping logic that correctly identifies Surahs even when multiple Surahs start on the same page (e.g., Al-Ikhlas, Al-Falaq, An-Nas).
+  - Tapping a Surah result accurately navigates to its specific starting page.
+- **Improved UI Customization**:
+  - Refactored color parameters for granular control.
+  - Added parameters: `topBarTextColor`, `pageNumberColor`, `searchResultGroupTitleColor`, `searchSheetIconsColor`, `searchFieldHintTextColor`, `searchFieldTextColor`, `searchFieldHandleColor`, `searchSheetBackgroundColor`, `searchSheetDarkBackgroundColor`, `searchFieldBackgroundColor`, `searchFieldDarkBackgroundColor`, and `searchSheetHeightMultiplier`.
+  - Upgraded `themeModeAdaption` to apply consistently across all text, icons, and background elements.
+- **Search UI Enhancements**:
+  - Added centered result count headings for Surahs and Verses (e.g., "عدد نتائج السور: ١٢").
+  - Resolved persistent highlighting bug when clearing selection and navigating back.
+- **Optimization**:
+  - Granular color control for different search result elements (verse vs. info).
+
 ## 1.1.0
 
 - **Integrated Search Functionality**:
