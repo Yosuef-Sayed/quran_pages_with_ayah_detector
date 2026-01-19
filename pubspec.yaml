@@ -1,0 +1,26 @@
+name: quran_pages_with_ayah_detector
+description: A Flutter package to show Quran pages with tap-detectable ayahs.
+version: 1.1.0
+homepage: https://github.com/Yosuef-Sayed/quran_pages_with_ayah_detector
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  archive: ^4.0.7
+  args: ^2.7.0
+  flutter:
+    sdk: flutter
+  http: ^1.6.0
+  path: ^1.8.3
+  quran: ^1.4.1
+  yaml: ^3.1.3
+  yaml_edit: ^2.2.2
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+
+executables:
+  quran_assets_cli: quran_assets_cli
+flutter:
+  uses-material-design: true
