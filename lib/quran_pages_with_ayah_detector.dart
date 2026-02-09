@@ -233,16 +233,31 @@ class _QuranPageViewState extends State<QuranPageView> {
     super.dispose();
   }
 
-  /// Builds the internal [_pageAyahMap] from [suraAyahToPage].
+  /// Builds the internal [_pageAyahMap] from [ayahRows].
+  /// This ensures the mapping matches the actual visual layout of ayahs on each page.
   void _buildPageAyahMap() {
-    suraAyahToPage.forEach((surah, ayahs) {
-      ayahs.forEach((ayah, page) {
-        _pageAyahMap.putIfAbsent(page, () => []).add({
+    // Use ayahRows as the source of truth for which ayahs are on which page
+    for (final row in ayahRows) {
+      final page = row['page_number'];
+      final surah = row['sura_number'];
+      final ayah = row['ayah_number'];
+
+      if (page is! int || surah is! int || ayah is! int) continue;
+
+      final ayahList = _pageAyahMap.putIfAbsent(page, () => []);
+
+      // Check if this ayah is already in the list (avoid duplicates)
+      final exists =
+          ayahList.any((e) => e['surah'] == surah && e['ayah'] == ayah);
+      if (!exists) {
+        ayahList.add({
           'surah': surah,
           'ayah': ayah,
         });
-      });
-    });
+      }
+    }
+
+    // Sort ayahs on each page by surah number, then ayah number
     _pageAyahMap.forEach((page, ayahs) {
       ayahs.sort((a, b) {
         if (a['surah'] != b['surah']) return a['surah']!.compareTo(b['surah']!);
@@ -346,19 +361,21 @@ class _QuranPageViewState extends State<QuranPageView> {
   /// Retrieves the QFC-encoded verse text for a given surah, ayah, and page.
   String _getQfcVerse(int surah, int ayah, int page) {
     final pageAyahs = _pageAyahMap[page];
-    if (pageAyahs == null) return '';
+    if (pageAyahs == null || pageAyahs.isEmpty) return '';
 
+    if (page < 1 || page > quranTextData.length) return '';
+    final pageTexts = quranTextData[page - 1];
+    if (pageTexts.isEmpty) return '';
+
+    // Find the index of this specific ayah on the page
     final indexOnPage = pageAyahs.indexWhere(
       (e) => e['surah'] == surah && e['ayah'] == ayah,
     );
-    if (indexOnPage != -1 && indexOnPage < quranTextData[page - 1].length) {
-      return quranTextData[page - 1][indexOnPage];
-    }
 
-    return pageAyahs.isNotEmpty && quranTextData[page - 1].isNotEmpty
-        ? quranTextData[page - 1]
-            [indexOnPage.clamp(0, quranTextData[page - 1].length - 1)]
-        : '';
+    if (indexOnPage == -1) return '';
+    if (indexOnPage >= pageTexts.length) return '';
+
+    return pageTexts[indexOnPage];
   }
 
   /// Handles tapping a search result by navigating to the page and highlighting the verse.
