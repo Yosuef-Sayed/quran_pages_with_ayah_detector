@@ -58,8 +58,47 @@ class Segment {
   double get area => width * height;
 }
 
+/// A controller for [QuranPageView] to programmatically control its behavior.
+class QuranPageController {
+  _QuranPageViewState? _state;
+
+  /// Attaches the state to this controller. Internal use only.
+  void _attach(_QuranPageViewState state) {
+    _state = state;
+  }
+
+  /// Detaches the state from this controller. Internal use only.
+  void _detach() {
+    _state = null;
+  }
+
+  /// Opens the search overlay.
+  void showSearch() {
+    _state?._showSearch();
+  }
+
+  /// Closes the search overlay.
+  void closeSearch() {
+    _state?._closeSearch();
+  }
+
+  /// Navigates to a specific page (1-604).
+  void jumpToPage(int page) {
+    _state?._jumpToPage(page);
+  }
+
+  /// Animates to a specific page (1-604).
+  Future<void> animateToPage(int page,
+      {required Duration duration, required Curve curve}) async {
+    await _state?._animateToPage(page, duration: duration, curve: curve);
+  }
+}
+
 /// A widget that displays Quran pages and allows for ayah detection and interaction.
 class QuranPageView extends StatefulWidget {
+  /// A controller to programmatically control the [QuranPageView].
+  final QuranPageController? controller;
+
   /// The base path to the Quran page images.
   final String pageImagePath;
 
@@ -180,6 +219,7 @@ class QuranPageView extends StatefulWidget {
     this.searchSheetHeightMultiplier = 0.6,
     this.pageNumberColor = Colors.black,
     this.searchResultGroupTitleColor = Colors.black87,
+    this.controller,
   });
 
   @override
@@ -220,14 +260,25 @@ class _QuranPageViewState extends State<QuranPageView> {
   void initState() {
     super.initState();
     _pageController = PageController();
+    widget.controller?._attach(this);
     _buildPageAyahMap();
     _buildSurasStartingOnPageMap();
+  }
+
+  @override
+  void didUpdateWidget(QuranPageView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?._detach();
+      widget.controller?._attach(this);
+    }
   }
 
   @override
 
   /// Disposes resources used by the search and page navigation.
   void dispose() {
+    widget.controller?._detach();
     _pageController.dispose();
     _debounce?.cancel();
     super.dispose();
@@ -391,6 +442,35 @@ class _QuranPageViewState extends State<QuranPageView> {
     _pageController.jumpToPage(page - 1);
   }
 
+  // Internal methods exposed to the controller
+  void _showSearch() {
+    if (mounted) {
+      setState(() {
+        _isSearchOpen = true;
+        _searchResults = [];
+      });
+    }
+  }
+
+  void _closeSearch() {
+    if (mounted) {
+      setState(() {
+        _isSearchOpen = false;
+        _searchResults = [];
+      });
+    }
+  }
+
+  void _jumpToPage(int page) {
+    _pageController.jumpToPage(page - 1);
+  }
+
+  Future<void> _animateToPage(int page,
+      {required Duration duration, required Curve curve}) async {
+    await _pageController.animateToPage(page - 1,
+        duration: duration, curve: curve);
+  }
+
   @override
 
   /// Builds the top-level view containing the Quran pages and search overlay.
@@ -417,14 +497,7 @@ class _QuranPageViewState extends State<QuranPageView> {
                 },
                 onSuraNameTap: widget.onSuraNameTap,
                 onJuzNumberTap: widget.onJuzNumberTap,
-                onSearchTap: () {
-                  if (mounted) {
-                    setState(() {
-                      _isSearchOpen = true;
-                      _searchResults = [];
-                    });
-                  }
-                },
+                onSearchTap: () => _showSearch(),
                 pageImagePath: widget.pageImagePath,
                 fontFamilyName: widget.fontFamilyName,
                 debuggingMode: widget.debuggingMode,
@@ -508,12 +581,7 @@ class _QuranPageViewState extends State<QuranPageView> {
     return Stack(
       children: [
         GestureDetector(
-          onTap: () {
-            setState(() {
-              _isSearchOpen = false;
-              _searchResults = [];
-            });
-          },
+          onTap: () => _closeSearch(),
           child: Container(
             color: Colors.black.withOpacity(0.3),
           ),
@@ -563,12 +631,7 @@ class _QuranPageViewState extends State<QuranPageView> {
                               Icon(Icons.search, color: effectiveIconsColor),
                           suffixIcon: IconButton(
                             icon: Icon(Icons.close, color: effectiveIconsColor),
-                            onPressed: () {
-                              setState(() {
-                                _isSearchOpen = false;
-                                _searchResults = [];
-                              });
-                            },
+                            onPressed: () => _closeSearch(),
                           ),
                           filled: true,
                           fillColor: effectiveFieldBg,
@@ -1127,7 +1190,10 @@ class _QuranPageState extends State<_QuranPage> {
                 widget.showPageNumber
                     ? SizedBox(
                         height: bottomTextHeight,
-                        child: Center(
+                        child: Align(
+                          alignment: widget.pageNumber % 2 == 0
+                              ? Alignment.bottomLeft
+                              : Alignment.bottomRight,
                           child: Text(
                             ArabicNumbers()
                                 .convert(widget.pageNumber)
@@ -1289,7 +1355,10 @@ class _QuranPageState extends State<_QuranPage> {
             widget.showPageNumber
                 ? SizedBox(
                     height: bottomTextHeight,
-                    child: Center(
+                    child: Align(
+                      alignment: widget.pageNumber % 2 == 0
+                          ? Alignment.bottomLeft
+                          : Alignment.bottomRight,
                       child: Text(
                         ArabicNumbers().convert(widget.pageNumber).toString(),
                         style: TextStyle(
