@@ -12,6 +12,27 @@ import 'package:quran_pages_with_ayah_detector/data/sura_ayah_to_page.dart';
 import 'package:quran_pages_with_ayah_detector/data/quran_text_data.dart';
 import 'package:flutter/services.dart';
 import 'package:quran/quran.dart' as quran;
+import 'package:quran_pages_with_ayah_detector/data/surah_number_of_ayahs.dart';
+import 'package:quran_pages_with_ayah_detector/data/is_madani.dart';
+import 'package:quran_pages_with_ayah_detector/data/hizb_quarters_data.dart';
+
+/// Defines the visual style of the page number container.
+enum PageNumberDesign {
+  /// No container, just text.
+  none,
+
+  /// Simple rounded rectangle with light background.
+  classic,
+
+  /// Pill-shaped container.
+  pill,
+
+  /// Container with a border but no background (Now the default).
+  outlined,
+
+  /// Glassmorphism effect.
+  glass,
+}
 
 /// Represents a rectangular segment (part) of an ayah on a single line of a
 /// Quran page image.
@@ -91,6 +112,11 @@ class QuranPageController {
   Future<void> animateToPage(int page,
       {required Duration duration, required Curve curve}) async {
     await _state?._animateToPage(page, duration: duration, curve: curve);
+  }
+
+  /// Opens the Juz/Surah selection sheet.
+  void showSelectionSheet() {
+    _state?._showSelectionSheet();
   }
 }
 
@@ -178,14 +204,53 @@ class QuranPageView extends StatefulWidget {
   /// The color for the grouping titles in search results (e.g., "Number of Surahs").
   final Color searchResultGroupTitleColor;
 
-  /// The color of the page number text at the bottom.
+  /// The text color of the page number at the bottom.
   final Color pageNumberColor;
+
+  /// The design style for the page number container.
+  final PageNumberDesign pageNumberDesign;
+
+  /// The background color for the page number container.
+  final Color? pageNumberBackgroundColor;
+
+  /// The border color for the page number container.
+  final Color? pageNumberBorderColor;
 
   /// Background color for the search overlay sheet in dark mode.
   final Color searchSheetDarkBackgroundColor;
 
   /// Background color for the search input field in dark mode.
   final Color searchFieldDarkBackgroundColor;
+
+  /// Background color for the selection sheet.
+  final Color selectionSheetBackgroundColor;
+
+  /// Background color for the selection sheet in dark mode.
+  final Color selectionSheetDarkBackgroundColor;
+
+  /// Text color for items in the selection sheet.
+  final Color selectionResultTextColor;
+
+  /// Color for supplementary info in the selection sheet.
+  final Color selectionResultInfoColor;
+
+  /// Color for grouping titles in the selection sheet.
+  final Color selectionResultGroupTitleColor;
+
+  /// Background color for the search field in the selection sheet.
+  final Color selectionSearchFieldBackgroundColor;
+
+  /// Background color for the search field in the selection sheet in dark mode.
+  final Color selectionSearchFieldDarkBackgroundColor;
+
+  /// Hint text for the search field in the selection sheet.
+  final String selectionSearchHintText;
+
+  /// The color used to highlight the current Surah or Juz in the selection sheet.
+  final Color selectionSheetHighlightColor;
+
+  /// The highlight color for the selection sheet in dark mode.
+  final Color selectionSheetDarkHighlightColor;
 
   /// Creates a [QuranPageView] with customizable behavior and styling.
   const QuranPageView({
@@ -219,6 +284,19 @@ class QuranPageView extends StatefulWidget {
     this.searchSheetHeightMultiplier = 0.6,
     this.pageNumberColor = Colors.black,
     this.searchResultGroupTitleColor = Colors.black87,
+    this.selectionSheetBackgroundColor = Colors.white,
+    this.selectionSheetDarkBackgroundColor = const Color(0xFF1E1E1E),
+    this.selectionResultTextColor = Colors.black,
+    this.selectionResultInfoColor = Colors.blue,
+    this.selectionResultGroupTitleColor = Colors.black87,
+    this.selectionSearchFieldBackgroundColor = const Color(0xFFF5F5F5),
+    this.selectionSearchFieldDarkBackgroundColor = const Color(0xFF2C2C2C),
+    this.selectionSearchHintText = "ابحث عن سورة...",
+    this.selectionSheetHighlightColor = const Color(0xFFE3F2FD),
+    this.selectionSheetDarkHighlightColor = const Color(0xFF1E88E5),
+    this.pageNumberDesign = PageNumberDesign.outlined,
+    this.pageNumberBackgroundColor,
+    this.pageNumberBorderColor,
     this.controller,
   });
 
@@ -254,6 +332,9 @@ class _QuranPageViewState extends State<QuranPageView> {
   /// A map that caches which surahs start on each page.
   final Map<int, List<int>> _surasStartingOnPage = {};
 
+  /// A map that caches which quarters of a hizb start on each page.
+  final Map<int, List<int>> _pageToQuarters = {};
+
   @override
 
   /// Initializes the page controller and builds the search location map.
@@ -263,6 +344,20 @@ class _QuranPageViewState extends State<QuranPageView> {
     widget.controller?._attach(this);
     _buildPageAyahMap();
     _buildSurasStartingOnPageMap();
+    _initQuartersMap();
+  }
+
+  void _initQuartersMap() {
+    _pageToQuarters.clear();
+    for (int q = 1; q < hizbQuartersData.length; q++) {
+      final start = hizbQuartersData[q];
+      final s = start[0];
+      final a = start[1];
+      final p = suraAyahToPage[s]?[a] ?? 0;
+      if (p != 0) {
+        _pageToQuarters.putIfAbsent(p, () => []).add(q);
+      }
+    }
   }
 
   @override
@@ -326,6 +421,43 @@ class _QuranPageViewState extends State<QuranPageView> {
     _surasStartingOnPage.forEach((page, suras) {
       suras.sort();
     });
+  }
+
+  /// Retrieves the first page of a given Juz.
+  int _getJuzStartPage(int juzNumber) {
+    for (int p = 1; p <= 604; p++) {
+      final glyph = juzGlyph[p];
+      if (glyph != null && glyph.codeUnitAt(0) == 0xFC38 + juzNumber) {
+        return p;
+      }
+    }
+    return 1;
+  }
+
+  /// Gets the current Juz number for a given page.
+  int _getCurrentJuzForPage(int page) {
+    for (int j = 1; j <= 30; j++) {
+      int start = _getJuzStartPage(j);
+      int nextStart = (j < 30) ? _getJuzStartPage(j + 1) : 605;
+      if (page >= start && page < nextStart) return j;
+    }
+    return 1;
+  }
+
+  /// Gets the current Surah number for a given page.
+  int _getCurrentSurahForPage(int page) {
+    // Check suras starting on this page
+    final starts = _surasStartingOnPage[page];
+    if (starts != null && starts.isNotEmpty) return starts[0];
+
+    // Otherwise find the surah that includes this page
+    for (int s = 1; s <= 114; s++) {
+      final startP = suraAyahToPage[s]?[1] ?? 1;
+      final lastAyah = quran.getVerseCount(s);
+      final endP = suraAyahToPage[s]?[lastAyah] ?? startP;
+      if (page >= startP && page <= endP) return s;
+    }
+    return 1;
   }
 
   /// Builds a centered title for grouping search results (e.g., "Number of Surahs").
@@ -471,6 +603,349 @@ class _QuranPageViewState extends State<QuranPageView> {
         duration: duration, curve: curve);
   }
 
+  void _showSelectionSheet({int? initialSurah, int? initialJuz}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final Color effectiveSheetBg = widget.themeModeAdaption
+        ? (isDark
+            ? widget.selectionSheetDarkBackgroundColor
+            : widget.selectionSheetBackgroundColor)
+        : widget.selectionSheetBackgroundColor;
+    final Color effectiveHighlightColor = widget.themeModeAdaption
+        ? (isDark
+            ? widget.selectionSheetDarkHighlightColor
+            : widget.selectionSheetHighlightColor)
+        : widget.selectionSheetHighlightColor;
+    final Color effectiveResultTextColor = widget.themeModeAdaption
+        ? (isDark ? Colors.white : Colors.black)
+        : widget.selectionResultTextColor;
+    final Color effectiveResultInfoColor = widget.themeModeAdaption
+        ? (isDark ? Colors.white70 : Colors.blue)
+        : widget.selectionResultInfoColor;
+    final Color effectiveGroupTitleColor = widget.themeModeAdaption
+        ? (isDark ? Colors.white70 : Colors.black87)
+        : widget.selectionResultGroupTitleColor;
+    final Color effectiveSearchFieldBg = widget.themeModeAdaption
+        ? (isDark
+            ? widget.selectionSearchFieldDarkBackgroundColor
+            : widget.selectionSearchFieldBackgroundColor)
+        : widget.selectionSearchFieldBackgroundColor;
+    final Color effectiveHandleColor = widget.searchFieldHandleColor;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        String sheetSearchQuery = "";
+        final scrollState = {'hasScrolled': false};
+
+        // Define key maps
+        final Map<int, GlobalKey> juzKeys = {
+          for (int i = 1; i <= 30; i++) i: GlobalKey()
+        };
+        final Map<int, GlobalKey> surahKeys = {
+          for (int i = 1; i <= 114; i++) i: GlobalKey()
+        };
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            // Trigger scroll once after frame
+            if (!scrollState['hasScrolled']!) {
+              scrollState['hasScrolled'] = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                // Determine target context
+                BuildContext? targetCtx;
+
+                if (initialSurah != null) {
+                  targetCtx = surahKeys[initialSurah]?.currentContext;
+                } else if (initialJuz != null) {
+                  targetCtx = juzKeys[initialJuz]?.currentContext;
+                }
+
+                if (targetCtx != null) {
+                  Scrollable.ensureVisible(targetCtx,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOutCubic,
+                      alignment:
+                          0.1); // Small top alignment padding as requested
+                }
+              });
+            }
+
+            return DraggableScrollableSheet(
+              initialChildSize: 0.6,
+              minChildSize: 0.3,
+              maxChildSize: 0.95,
+              builder: (context, scrollController) {
+                return Container(
+                  decoration: BoxDecoration(
+                    color: effectiveSheetBg,
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(25)),
+                  ),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 12),
+                      Container(
+                        width: 40,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(2.5),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Theme(
+                          data: Theme.of(context).copyWith(
+                            textSelectionTheme: TextSelectionThemeData(
+                              cursorColor: effectiveHandleColor,
+                              selectionColor:
+                                  effectiveHandleColor.withOpacity(0.3),
+                              selectionHandleColor: effectiveHandleColor,
+                            ),
+                          ),
+                          child: TextField(
+                            onChanged: (val) {
+                              setSheetState(() {
+                                sheetSearchQuery = val.trim();
+                              });
+                            },
+                            textDirection: TextDirection.rtl,
+                            style: TextStyle(color: effectiveResultTextColor),
+                            decoration: InputDecoration(
+                              hintText: widget.selectionSearchHintText,
+                              hintTextDirection: TextDirection.rtl,
+                              hintStyle: TextStyle(
+                                  color: effectiveResultTextColor
+                                      .withOpacity(0.5)),
+                              prefixIcon: Icon(Icons.search,
+                                  color: effectiveResultTextColor
+                                      .withOpacity(0.5)),
+                              filled: true,
+                              fillColor: effectiveSearchFieldBg,
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(15),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          controller: scrollController,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              for (int juzIndex = 0; juzIndex < 30; juzIndex++)
+                                Builder(
+                                  builder: (context) {
+                                    final juzNum = juzIndex + 1;
+                                    final juzStartPage =
+                                        _getJuzStartPage(juzNum);
+
+                                    // Key for the Juz header
+                                    final juzKey = juzKeys[juzNum];
+
+                                    // Get all surahs in this juz according to quran package
+
+                                    // Get all surahs in this juz according to quran package
+                                    final juzData =
+                                        quran.getSurahAndVersesFromJuz(juzNum);
+                                    final juzSuras = juzData.keys.toList();
+
+                                    // Filter: Only show surah if its START juz is this juz
+                                    final filteredSuras = juzSuras.where((s) {
+                                      final startJuz = quran.getJuzNumber(s, 1);
+                                      if (startJuz != juzNum) return false;
+
+                                      if (sheetSearchQuery.isNotEmpty) {
+                                        final name =
+                                            quran.getSurahNameArabic(s);
+                                        return name.contains(sheetSearchQuery);
+                                      }
+                                      return true;
+                                    }).toList();
+
+                                    if (sheetSearchQuery.isNotEmpty &&
+                                        filteredSuras.isEmpty) {
+                                      return const SizedBox.shrink();
+                                    }
+
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        GestureDetector(
+                                          key: juzKey,
+                                          onTap: () {
+                                            Navigator.pop(context);
+                                            _jumpToPage(juzStartPage);
+                                          },
+                                          child: Container(
+                                            margin:
+                                                const EdgeInsets.only(top: 8),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 16, vertical: 14),
+                                            decoration: BoxDecoration(
+                                              color: isDark
+                                                  ? Colors.white
+                                                      .withOpacity(0.05)
+                                                  : Colors.black
+                                                      .withOpacity(0.03),
+                                              border: Border(
+                                                bottom: BorderSide(
+                                                    color: Colors.grey
+                                                        .withOpacity(0.1)),
+                                                top: BorderSide(
+                                                    color: Colors.grey
+                                                        .withOpacity(0.1)),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              textDirection: TextDirection.rtl,
+                                              children: [
+                                                Text(
+                                                  "\uFC38${String.fromCharCode(0xFC38 + juzNum)}",
+                                                  style: TextStyle(
+                                                    fontFamily:
+                                                        widget.fontFamilyName,
+                                                    fontSize: 26,
+                                                    fontWeight: FontWeight.bold,
+                                                    color:
+                                                        effectiveGroupTitleColor,
+                                                  ),
+                                                ),
+                                                // Page number removed for Juz row as requested
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        for (int s in filteredSuras) ...[
+                                          () {
+                                            final suraKey = surahKeys[s];
+                                            final isHighlighted = s ==
+                                                    initialSurah ||
+                                                (initialJuz == juzNum &&
+                                                    initialSurah == null &&
+                                                    s == filteredSuras.first);
+
+                                            return InkWell(
+                                              key: suraKey,
+                                              onTap: () {
+                                                Navigator.pop(context);
+                                                final p =
+                                                    suraAyahToPage[s]?[1] ?? 1;
+                                                _jumpToPage(p);
+                                              },
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 32,
+                                                        vertical: 12),
+                                                decoration: BoxDecoration(
+                                                  color: isHighlighted
+                                                      ? effectiveHighlightColor
+                                                      : Colors.transparent,
+                                                  border: Border(
+                                                      bottom: BorderSide(
+                                                          color: Colors.grey
+                                                              .withOpacity(
+                                                                  0.05))),
+                                                ),
+                                                child: Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment
+                                                          .spaceBetween,
+                                                  textDirection:
+                                                      TextDirection.rtl,
+                                                  children: [
+                                                    Builder(
+                                                      builder: (context) {
+                                                        final ayahsCount =
+                                                            suraNumberOfAyahs[
+                                                                    s] ??
+                                                                0;
+                                                        final madani =
+                                                            isMadani[s] ??
+                                                                false;
+                                                        final typeStr = madani
+                                                            ? "مَدَنِيَّة"
+                                                            : "مَكِّيَّة";
+                                                        final detailStr =
+                                                            "رقمها ${ArabicNumbers().convert(s)} - آياتها ${ArabicNumbers().convert(ayahsCount)} - $typeStr";
+                                                        return Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .end,
+                                                          children: [
+                                                            Text(
+                                                              "${_getSurahGlyph(s)}\u005C",
+                                                              style: TextStyle(
+                                                                fontFamily: widget
+                                                                    .fontFamilyName,
+                                                                fontSize: 22,
+                                                                color:
+                                                                    effectiveResultTextColor,
+                                                              ),
+                                                            ),
+                                                            Text(
+                                                              detailStr,
+                                                              style: TextStyle(
+                                                                fontSize: 11,
+                                                                color: effectiveResultTextColor
+                                                                    .withOpacity(
+                                                                        0.6),
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        );
+                                                      },
+                                                    ),
+                                                    Text(
+                                                      'صفحة ${ArabicNumbers().convert(suraAyahToPage[s]?[1] ?? 1)}',
+                                                      style: TextStyle(
+                                                        fontSize: 13,
+                                                        color:
+                                                            effectiveResultInfoColor,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          }(),
+                                        ],
+                                      ],
+                                    );
+                                  },
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
 
   /// Builds the top-level view containing the Quran pages and search overlay.
@@ -495,8 +970,12 @@ class _QuranPageViewState extends State<QuranPageView> {
                     });
                   }
                 },
-                onSuraNameTap: widget.onSuraNameTap,
-                onJuzNumberTap: widget.onJuzNumberTap,
+                onSuraNameTap: widget.onSuraNameTap ??
+                    () => _showSelectionSheet(
+                        initialSurah: _getCurrentSurahForPage(page)),
+                onJuzNumberTap: widget.onJuzNumberTap ??
+                    () => _showSelectionSheet(
+                        initialJuz: _getCurrentJuzForPage(page)),
                 onSearchTap: () => _showSearch(),
                 pageImagePath: widget.pageImagePath,
                 fontFamilyName: widget.fontFamilyName,
@@ -507,6 +986,9 @@ class _QuranPageViewState extends State<QuranPageView> {
                 quranTextColor: widget.quranTextColor,
                 topBarTextColor: widget.topBarTextColor,
                 pageNumberColor: widget.pageNumberColor,
+                pageNumberDesign: widget.pageNumberDesign,
+                pageNumberBackgroundColor: widget.pageNumberBackgroundColor,
+                pageNumberBorderColor: widget.pageNumberBorderColor,
                 searchResultGroupTitleColor: widget.searchResultGroupTitleColor,
                 highlightColor: widget.highlightColor,
                 highlightDuration: widget.highlightDuration,
@@ -522,6 +1004,7 @@ class _QuranPageViewState extends State<QuranPageView> {
                     });
                   }
                 },
+                quarters: _pageToQuarters[page] ?? [],
               );
             },
           ),
@@ -563,9 +1046,6 @@ class _QuranPageViewState extends State<QuranPageView> {
     final Color effectiveFieldTextColor = widget.themeModeAdaption
         ? (isDark ? Colors.white : Colors.black)
         : widget.searchFieldTextColor;
-    final Color effectiveHandleColor = widget.themeModeAdaption
-        ? (isDark ? Colors.white : Colors.black)
-        : widget.searchFieldHandleColor;
     final Color effectiveFieldBg = widget.themeModeAdaption
         ? (isDark
             ? widget.searchFieldDarkBackgroundColor
@@ -574,6 +1054,7 @@ class _QuranPageViewState extends State<QuranPageView> {
     final Color effectiveGroupTitleColor = widget.themeModeAdaption
         ? (isDark ? Colors.white70 : Colors.black87)
         : widget.searchResultGroupTitleColor;
+    final Color effectiveHandleColor = widget.searchFieldHandleColor;
 
     final suraCount = _searchResults.where((r) => r['type'] == 'surah').length;
     final verseCount = _searchResults.where((r) => r['type'] == 'verse').length;
@@ -854,6 +1335,15 @@ class _QuranPage extends StatefulWidget {
   /// The text color used for the page number text at the bottom.
   final Color pageNumberColor;
 
+  /// The design style for the page number container.
+  final PageNumberDesign pageNumberDesign;
+
+  /// The background color for the page number container.
+  final Color? pageNumberBackgroundColor;
+
+  /// The border color for the page number container.
+  final Color? pageNumberBorderColor;
+
   /// The color for the grouping titles in search results.
   final Color searchResultGroupTitleColor;
 
@@ -887,6 +1377,9 @@ class _QuranPage extends StatefulWidget {
   /// Callback when the ayah selection is cleared.
   final VoidCallback? onClearSelection;
 
+  /// Quarters of hizb that start on this page.
+  final List<int>? quarters;
+
   /// Creates a [_QuranPage] with the given configuration.
   const _QuranPage({
     required this.pageNumber,
@@ -903,6 +1396,9 @@ class _QuranPage extends StatefulWidget {
     required this.quranTextColor,
     required this.topBarTextColor,
     required this.pageNumberColor,
+    required this.pageNumberDesign,
+    this.pageNumberBackgroundColor,
+    this.pageNumberBorderColor,
     required this.searchResultGroupTitleColor,
     required this.highlightColor,
     required this.highlightDuration,
@@ -910,6 +1406,7 @@ class _QuranPage extends StatefulWidget {
     required this.searchIconColor,
     this.highlightedAyahKey,
     this.onClearSelection,
+    this.quarters,
   });
 
   @override
@@ -1029,6 +1526,26 @@ class _QuranPageState extends State<_QuranPage> {
     }
   }
 
+  /// Returns a formatted string describing the Hizb and Quarter for a given [q].
+  String _getQuarterDetail(int q) {
+    final hizbNum = ((q - 1) ~/ 4) + 1;
+    final quarterInHizb = (q - 1) % 4;
+    final hizbStr = ArabicNumbers().convert(hizbNum);
+
+    switch (quarterInHizb) {
+      case 0:
+        return "بداية الحزب $hizbStr";
+      case 1:
+        return "الربع الأول من الحزب $hizbStr";
+      case 2:
+        return "نصف الحزب $hizbStr";
+      case 3:
+        return "الربع الثالث من الحزب $hizbStr";
+      default:
+        return "";
+    }
+  }
+
   @override
 
   /// Builds the single page view with ayah detection and highlighting.
@@ -1037,7 +1554,7 @@ class _QuranPageState extends State<_QuranPage> {
     const imgH = 3106.0;
     const double scrollThreshold = 520.0;
     const double topTextHeight = 60.0;
-    const double bottomTextHeight = 30.0;
+    const double bottomTextHeight = 100.0; // Increased to avoid overflow
 
     return LayoutBuilder(builder: (context, constraints) {
       final containerW = constraints.maxWidth;
@@ -1071,45 +1588,57 @@ class _QuranPageState extends State<_QuranPage> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             textDirection: TextDirection.rtl,
                             children: [
-                              GestureDetector(
-                                onTap: () {
-                                  if (widget.onJuzNumberTap != null) {
-                                    widget.onJuzNumberTap!();
-                                  }
-                                },
-                                child: Text(
-                                  "\uFC38${juzGlyph[widget.pageNumber]}",
-                                  style: TextStyle(
-                                      fontSize: 22,
-                                      color: widget.themeModeAdaption
-                                          ? IconTheme.of(context).color
-                                          : widget.topBarTextColor,
-                                      fontFamily: widget.fontFamilyName),
+                              Expanded(
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      if (widget.onJuzNumberTap != null) {
+                                        widget.onJuzNumberTap!();
+                                      }
+                                    },
+                                    child: Text(
+                                      "\uFC38${juzGlyph[widget.pageNumber]}",
+                                      style: TextStyle(
+                                          fontSize: 22,
+                                          color: widget.themeModeAdaption
+                                              ? IconTheme.of(context).color
+                                              : widget.topBarTextColor,
+                                          fontFamily: widget.fontFamilyName),
+                                    ),
+                                  ),
                                 ),
                               ),
                               if (widget.showSearchIcon)
-                                GestureDetector(
-                                  onTap: widget.onSearchTap,
-                                  child: Icon(
-                                    Icons.search,
-                                    color: widget.searchIconColor,
-                                    size: 26,
+                                Expanded(
+                                  child: GestureDetector(
+                                    onTap: widget.onSearchTap,
+                                    child: Icon(
+                                      Icons.search,
+                                      color: widget.searchIconColor,
+                                      size: 26,
+                                    ),
                                   ),
                                 ),
-                              GestureDetector(
-                                onTap: () {
-                                  if (widget.onSuraNameTap != null) {
-                                    widget.onSuraNameTap!();
-                                  }
-                                },
-                                child: Text(
-                                  "${suraGlyph[widget.pageNumber]}\u005C",
-                                  style: TextStyle(
-                                      fontSize: 22,
-                                      color: widget.themeModeAdaption
-                                          ? IconTheme.of(context).color
-                                          : widget.topBarTextColor,
-                                      fontFamily: widget.fontFamilyName),
+                              Expanded(
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      if (widget.onSuraNameTap != null) {
+                                        widget.onSuraNameTap!();
+                                      }
+                                    },
+                                    child: Text(
+                                      "${suraGlyph[widget.pageNumber]}\u005C",
+                                      style: TextStyle(
+                                          fontSize: 22,
+                                          color: widget.themeModeAdaption
+                                              ? IconTheme.of(context).color
+                                              : widget.topBarTextColor,
+                                          fontFamily: widget.fontFamilyName),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],
@@ -1194,16 +1723,68 @@ class _QuranPageState extends State<_QuranPage> {
                           alignment: widget.pageNumber % 2 == 0
                               ? Alignment.bottomLeft
                               : Alignment.bottomRight,
-                          child: Text(
-                            ArabicNumbers()
-                                .convert(widget.pageNumber)
-                                .toString(),
-                            style: TextStyle(
-                                fontSize: 18,
-                                color: widget.themeModeAdaption
-                                    ? IconTheme.of(context).color
-                                    : widget.pageNumberColor),
-                            textDirection: TextDirection.rtl,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 4),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: widget.pageNumber % 2 == 0
+                                  ? CrossAxisAlignment.start
+                                  : CrossAxisAlignment.end,
+                              children: [
+                                if (widget.quarters != null &&
+                                    widget.quarters!.isNotEmpty)
+                                  for (int q in widget.quarters!)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 4),
+                                      child: Text(
+                                        _getQuarterDetail(q),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w500,
+                                          color: widget.themeModeAdaption
+                                              ? IconTheme.of(context).color
+                                              : widget.pageNumberColor,
+                                        ),
+                                        textDirection: TextDirection.rtl,
+                                      ),
+                                    ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: widget.themeModeAdaption
+                                        ? (Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? Colors.white.withOpacity(0.1)
+                                            : Colors.black.withOpacity(0.05))
+                                        : widget.pageNumberColor
+                                            .withOpacity(0.05),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                        color: widget.themeModeAdaption
+                                            ? (Theme.of(context).brightness ==
+                                                    Brightness.dark
+                                                ? Colors.white24
+                                                : Colors.black12)
+                                            : widget.pageNumberColor
+                                                .withOpacity(0.1)),
+                                  ),
+                                  child: Text(
+                                    ArabicNumbers()
+                                        .convert(widget.pageNumber)
+                                        .toString(),
+                                    style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: widget.themeModeAdaption
+                                            ? IconTheme.of(context).color
+                                            : widget.pageNumberColor),
+                                    textDirection: TextDirection.rtl,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       )
@@ -1231,47 +1812,59 @@ class _QuranPageState extends State<_QuranPage> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         textDirection: TextDirection.rtl,
                         children: [
-                          GestureDetector(
-                            onTap: () {
-                              if (widget.onJuzNumberTap != null) {
-                                widget.onJuzNumberTap!();
-                              }
-                            },
-                            child: Text(
-                              "\uFC38${juzGlyph[widget.pageNumber]}",
-                              style: TextStyle(
-                                  fontSize: 22,
-                                  color: widget.themeModeAdaption
-                                      ? IconTheme.of(context).color
-                                      : widget.topBarTextColor,
-                                  fontFamily: widget.fontFamilyName),
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: GestureDetector(
+                                onTap: () {
+                                  if (widget.onJuzNumberTap != null) {
+                                    widget.onJuzNumberTap!();
+                                  }
+                                },
+                                child: Text(
+                                  "\uFC38${juzGlyph[widget.pageNumber]}",
+                                  style: TextStyle(
+                                      fontSize: 22,
+                                      color: widget.themeModeAdaption
+                                          ? IconTheme.of(context).color
+                                          : widget.topBarTextColor,
+                                      fontFamily: widget.fontFamilyName),
+                                ),
+                              ),
                             ),
                           ),
                           if (widget.showSearchIcon)
-                            GestureDetector(
-                              onTap: widget.onSearchTap,
-                              child: Icon(
-                                Icons.search,
-                                color: widget.themeModeAdaption
-                                    ? IconTheme.of(context).color
-                                    : widget.searchIconColor,
-                                size: 26,
-                              ),
-                            ),
-                          GestureDetector(
-                            onTap: () {
-                              if (widget.onSuraNameTap != null) {
-                                widget.onSuraNameTap!();
-                              }
-                            },
-                            child: Text(
-                              "${suraGlyph[widget.pageNumber]}\u005C",
-                              style: TextStyle(
-                                  fontSize: 22,
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: widget.onSearchTap,
+                                child: Icon(
+                                  Icons.search,
                                   color: widget.themeModeAdaption
                                       ? IconTheme.of(context).color
-                                      : widget.topBarTextColor,
-                                  fontFamily: widget.fontFamilyName),
+                                      : widget.searchIconColor,
+                                  size: 26,
+                                ),
+                              ),
+                            ),
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: GestureDetector(
+                                onTap: () {
+                                  if (widget.onSuraNameTap != null) {
+                                    widget.onSuraNameTap!();
+                                  }
+                                },
+                                child: Text(
+                                  "${suraGlyph[widget.pageNumber]}\u005C",
+                                  style: TextStyle(
+                                      fontSize: 22,
+                                      color: widget.themeModeAdaption
+                                          ? IconTheme.of(context).color
+                                          : widget.topBarTextColor,
+                                      fontFamily: widget.fontFamilyName),
+                                ),
+                              ),
                             ),
                           ),
                         ],
@@ -1359,14 +1952,165 @@ class _QuranPageState extends State<_QuranPage> {
                       alignment: widget.pageNumber % 2 == 0
                           ? Alignment.bottomLeft
                           : Alignment.bottomRight,
-                      child: Text(
-                        ArabicNumbers().convert(widget.pageNumber).toString(),
-                        style: TextStyle(
-                            fontSize: 18,
-                            color: widget.themeModeAdaption
-                                ? IconTheme.of(context).color
-                                : widget.pageNumberColor),
-                        textDirection: TextDirection.rtl,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: widget.pageNumber % 2 == 0
+                              ? CrossAxisAlignment.start
+                              : CrossAxisAlignment.end,
+                          children: [
+                            (() {
+                              // Helper to build the quarter text widgets
+                              List<Widget> quarterWidgets = [];
+                              if (widget.quarters != null &&
+                                  widget.quarters!.isNotEmpty) {
+                                for (int q in widget.quarters!) {
+                                  quarterWidgets.add(
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 6),
+                                      child: Text(
+                                        _getQuarterDetail(q),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: widget.themeModeAdaption
+                                              ? IconTheme.of(context).color
+                                              : widget.pageNumberColor,
+                                        ),
+                                        textDirection: TextDirection.rtl,
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+
+                              if (widget.pageNumberDesign ==
+                                  PageNumberDesign.none) {
+                                return Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: widget.pageNumber % 2 == 0
+                                      ? CrossAxisAlignment.start
+                                      : CrossAxisAlignment.end,
+                                  children: [
+                                    ...quarterWidgets,
+                                    Text(
+                                      ArabicNumbers()
+                                          .convert(widget.pageNumber)
+                                          .toString(),
+                                      style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: widget.themeModeAdaption
+                                              ? IconTheme.of(context).color
+                                              : widget.pageNumberColor),
+                                      textDirection: TextDirection.rtl,
+                                    ),
+                                  ],
+                                );
+                              }
+
+                              final bool isDark =
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark;
+
+                              // Effective colors
+                              final Color effectiveBg =
+                                  widget.pageNumberBackgroundColor ??
+                                      (widget.themeModeAdaption
+                                          ? (isDark
+                                              ? Colors.white.withOpacity(0.12)
+                                              : Colors.black.withOpacity(0.06))
+                                          : widget.pageNumberColor
+                                              .withOpacity(0.06));
+
+                              final Color effectiveBorder =
+                                  widget.pageNumberBorderColor ??
+                                      (widget.themeModeAdaption
+                                          ? (isDark
+                                              ? Colors.white24
+                                              : Colors.black12)
+                                          : widget.pageNumberColor
+                                              .withOpacity(0.15));
+
+                              BoxDecoration deco;
+                              switch (widget.pageNumberDesign) {
+                                case PageNumberDesign.pill:
+                                  deco = BoxDecoration(
+                                    color: effectiveBg,
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(color: effectiveBorder),
+                                  );
+                                  break;
+                                case PageNumberDesign.classic:
+                                  deco = BoxDecoration(
+                                    color: effectiveBg,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: effectiveBorder),
+                                  );
+                                  break;
+                                case PageNumberDesign.glass:
+                                  deco = BoxDecoration(
+                                    color: isDark
+                                        ? Colors.white.withOpacity(0.12)
+                                        : Colors.white.withOpacity(0.35),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                        color: Colors.white.withOpacity(0.2)),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.04),
+                                        blurRadius: 8,
+                                      )
+                                    ],
+                                  );
+                                  break;
+                                case PageNumberDesign.outlined:
+                                default:
+                                  deco = BoxDecoration(
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                        color: widget.pageNumberBorderColor ??
+                                            (widget.themeModeAdaption
+                                                ? (isDark
+                                                    ? Colors.white70
+                                                    : Colors.black54)
+                                                : widget.pageNumberColor)),
+                                  );
+                                  break;
+                              }
+
+                              return IntrinsicWidth(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 8),
+                                  decoration: deco,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      ...quarterWidgets,
+                                      Text(
+                                        ArabicNumbers()
+                                            .convert(widget.pageNumber)
+                                            .toString(),
+                                        style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: widget.themeModeAdaption
+                                                ? IconTheme.of(context).color
+                                                : widget.pageNumberColor),
+                                        textDirection: TextDirection.rtl,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }()),
+                          ],
+                        ),
                       ),
                     ),
                   )
