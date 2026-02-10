@@ -34,7 +34,7 @@ Add the dependency to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  quran_pages_with_ayah_detector: ^1.1.1
+  quran_pages_with_ayah_detector: ^1.2.0
 ```
 
 or use
@@ -71,7 +71,9 @@ This will:
 
 Should look like that in your project after installing the package & required assets:
 
-![Preview](quranPageView.png)
+![Preview](screenshot_1.png)
+![Preview](screenshot_2.png)
+![Preview](screenshot_3.png)
 
 ## Usage
 
@@ -98,6 +100,12 @@ QuranPageView(
   pageNumberColor: Colors.grey,
   searchResultGroupTitleColor: Colors.black87,
   themeModeAdaption: true, // Automatically adapt colors for Dark/Light mode
+  // New in 1.2.0
+  pageNumberDesign: PageNumberDesign.outlined, // Choose from classic, pill, outlined, glass, none
+  pageNumberScrubbingBackgroundColor: Colors.black87,
+  pageNumberScrubbingTextColor: Colors.white,
+  popupBackgroundColor: Colors.white,
+  popupTextColor: Colors.black,
 )
 ```
 
@@ -105,20 +113,29 @@ QuranPageView(
 
 The `QuranPageView` offers extensive customization options for colors and layout:
 
-| Parameter                        | Default             | Description                                                                                  |
-| -------------------------------- | ------------------- | -------------------------------------------------------------------------------------------- |
-| `quranTextColor`                 | `Colors.black`      | The color applied to the Quran page images.                                                  |
-| `topBarTextColor`                | `Colors.black`      | Color for Surah and Juz names in the top bar.                                                |
-| `pageNumberColor`                | `Colors.black`      | Color for the page number text at the bottom.                                                |
-| `searchSheetIconsColor`          | `Colors.black`      | Color for icons inside the search sheet.                                                     |
-| `searchFieldHintTextColor`       | `Colors.grey`       | Hint text color in the search field.                                                         |
-| `searchFieldTextColor`           | `Colors.black`      | Input text color in the search field.                                                        |
-| `searchFieldHandleColor`         | `Colors.black`      | Cursor and selection handle color.                                                           |
-| `searchSheetBackgroundColor`     | `Colors.white`      | Background color for the search sheet (Light).                                               |
-| `searchSheetDarkBackgroundColor` | `Color(0xFF1E1E1E)` | Background color for the search sheet (Dark).                                                |
-| `searchFieldBackgroundColor`     | `Color(0xFFF5F5F5)` | Background color for the search field (Light).                                               |
-| `searchFieldDarkBackgroundColor` | `Color(0xFF2C2C2C)` | Background color for the search field (Dark).                                                |
-| `searchResultGroupTitleColor`    | `Colors.black87`    | Color for the result count titles in search.                                                 |
-| `searchSheetHeightMultiplier`    | `0.4`               | Max height of the search results sheet (0.0 to 1.0).                                         |
-| `themeModeAdaption`              | `true`              | If true, colors automatically toggle between black/white or light/dark pairs based on theme. |
-| `highlightColor`                 | `Colors.black`      | Color used to highlight the selected ayah.                                                   |
+| Parameter                            | Default                     | Description                                                                                  |
+| ------------------------------------ | --------------------------- | -------------------------------------------------------------------------------------------- |
+| `quranTextColor`                     | `Colors.black`              | The color applied to the Quran page images.                                                  |
+| `topBarTextColor`                    | `Colors.black`              | Color for Surah and Juz names in the top bar.                                                |
+| `pageNumberColor`                    | `Colors.black`              | Color for the page number text at the bottom.                                                |
+| `searchSheetIconsColor`              | `Colors.black`              | Color for icons inside the search sheet.                                                     |
+| `searchFieldHintTextColor`           | `Colors.grey`               | Hint text color in the search field.                                                         |
+| `searchFieldTextColor`               | `Colors.black`              | Input text color in the search field.                                                        |
+| `searchFieldHandleColor`             | `Colors.black`              | Cursor and selection handle color.                                                           |
+| `searchSheetBackgroundColor`         | `Colors.white`              | Background color for the search sheet (Light).                                               |
+| `searchSheetDarkBackgroundColor`     | `Color(0xFF1E1E1E)`         | Background color for the search sheet (Dark).                                                |
+| `searchFieldBackgroundColor`         | `Color(0xFFF5F5F5)`         | Background color for the search field (Light).                                               |
+| `searchFieldDarkBackgroundColor`     | `Color(0xFF2C2C2C)`         | Background color for the search field (Dark).                                                |
+| `searchResultGroupTitleColor`        | `Colors.black87`            | Color for the result count titles in search.                                                 |
+| `searchSheetHeightMultiplier`        | `0.4`                       | Max height of the search results sheet (0.0 to 1.0).                                         |
+| `themeModeAdaption`                  | `true`                      | If true, colors automatically toggle between black/white or light/dark pairs based on theme. |
+| `highlightColor`                     | `Colors.black`              | Color used to highlight the selected ayah.                                                   |
+| `pageNumberDesign`                   | `PageNumberDesign.outlined` | Design style for the page number container.                                                  |
+| `pageNumberBackgroundColor`          | `null`                      | Background color for page number container (if design supports it).                          |
+| `pageNumberBorderColor`              | `null`                      | Border color for page number container.                                                      |
+| `pageNumberScrubbingTextColor`       | `Colors.white`              | Text color for the scrubbing overlay.                                                        |
+| `pageNumberScrubbingBackgroundColor` | `null`                      | Background color for the scrubbing overlay.                                                  |
+| `popupBackgroundColor`               | `null`                      | Background color for the page preview popup.                                                 |
+| `popupTextColor`                     | `null`                      | Text color for the page preview popup.                                                       |
+| `popupWidth`                         | `null`                      | Custom width for the page preview popup.                                                     |
+| `popupHeight`                        | `null`                      | Custom height for the page preview popup.                                                    |

@@ -115,8 +115,9 @@ class QuranPageController {
   }
 
   /// Opens the Juz/Surah selection sheet.
-  void showSelectionSheet() {
-    _state?._showSelectionSheet();
+  void showSelectionSheet({int? initialSurah, int? initialJuz}) {
+    _state?._showSelectionSheet(
+        initialSurah: initialSurah, initialJuz: initialJuz);
   }
 }
 
@@ -252,6 +253,28 @@ class QuranPageView extends StatefulWidget {
   /// The highlight color for the selection sheet in dark mode.
   final Color selectionSheetDarkHighlightColor;
 
+  /// The text color for the page number scrubbing overlay.
+  /// If null, defaults to white.
+  final Color? pageNumberScrubbingTextColor;
+
+  /// The background color for the page number scrubbing overlay.
+
+  /// The background color for the page number scrubbing overlay.
+  /// If null, defaults to [pageNumberBackgroundColor] or black.
+  final Color? pageNumberScrubbingBackgroundColor;
+
+  /// Custom background color for the popup.
+  final Color? popupBackgroundColor;
+
+  /// Custom text color for the popup.
+  final Color? popupTextColor;
+
+  /// Custom width for the popup.
+  final double? popupWidth;
+
+  /// Custom height for the popup.
+  final double? popupHeight;
+
   /// Creates a [QuranPageView] with customizable behavior and styling.
   const QuranPageView({
     super.key,
@@ -296,7 +319,13 @@ class QuranPageView extends StatefulWidget {
     this.selectionSheetDarkHighlightColor = const Color(0xFF1E88E5),
     this.pageNumberDesign = PageNumberDesign.outlined,
     this.pageNumberBackgroundColor,
+    this.pageNumberScrubbingBackgroundColor,
+    this.pageNumberScrubbingTextColor,
     this.pageNumberBorderColor,
+    this.popupBackgroundColor,
+    this.popupTextColor,
+    this.popupWidth,
+    this.popupHeight,
     this.controller,
   });
 
@@ -307,7 +336,8 @@ class QuranPageView extends StatefulWidget {
 }
 
 /// State class for [QuranPageView] that manages page navigation and search state.
-class _QuranPageViewState extends State<QuranPageView> {
+class _QuranPageViewState extends State<QuranPageView>
+    with SingleTickerProviderStateMixin {
   /// Controller for the [PageView] that handles page transitions.
   late PageController _pageController;
 
@@ -335,6 +365,10 @@ class _QuranPageViewState extends State<QuranPageView> {
   /// A map that caches which quarters of a hizb start on each page.
   final Map<int, List<int>> _pageToQuarters = {};
 
+  late AnimationController _scrubController;
+  late Animation<double> _scrubScaleAnimation;
+  late Animation<double> _scrubOpacityAnimation;
+
   @override
 
   /// Initializes the page controller and builds the search location map.
@@ -345,6 +379,18 @@ class _QuranPageViewState extends State<QuranPageView> {
     _buildPageAyahMap();
     _buildSurasStartingOnPageMap();
     _initQuartersMap();
+
+    // Scrubbing animation controller
+    _scrubController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _scrubScaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(parent: _scrubController, curve: Curves.easeOutBack),
+    );
+    _scrubOpacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _scrubController, curve: Curves.easeIn),
+    );
   }
 
   void _initQuartersMap() {
@@ -373,6 +419,7 @@ class _QuranPageViewState extends State<QuranPageView> {
 
   /// Disposes resources used by the search and page navigation.
   void dispose() {
+    _scrubController.dispose();
     widget.controller?._detach();
     _pageController.dispose();
     _debounce?.cancel();
@@ -1009,9 +1056,132 @@ class _QuranPageViewState extends State<QuranPageView> {
             },
           ),
         ),
+        // Scrubbing Touch Area & Static Page Number Container
+        // Scrubbing Touch Area
+        if (widget.showPageNumber)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 25,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onLongPressStart: _handleScrubStart,
+              onLongPressMoveUpdate: _handleScrubUpdate,
+              onLongPressEnd: _handleScrubEnd,
+              child: Container(
+                height: 60, // Touch target height
+                alignment: Alignment.center,
+                // Page Number Popup (Animated)
+                child: AnimatedBuilder(
+                  animation: _scrubController,
+                  builder: (context, child) {
+                    if (_scrubController.value == 0) {
+                      return const SizedBox.shrink();
+                    }
+
+                    return Transform.scale(
+                      scale: _scrubScaleAnimation.value,
+                      child: Opacity(
+                        opacity: _scrubOpacityAnimation.value,
+                        child: Material(
+                          elevation: 6.0,
+                          borderRadius: BorderRadius.circular(25),
+                          color: widget.popupBackgroundColor ??
+                              (widget.themeModeAdaption &&
+                                      Theme.of(context).brightness ==
+                                          Brightness.dark
+                                  ? Colors.blue.withOpacity(0.9)
+                                  : (widget.pageNumberScrubbingBackgroundColor ??
+                                          widget.pageNumberBackgroundColor ??
+                                          Colors.black)
+                                      .withOpacity(0.9)),
+                          child: SizedBox(
+                            width: widget.popupWidth ?? 80,
+                            height: widget.popupHeight ?? 40,
+                            child: Center(
+                              child: Text(
+                                // Use 1-based index (0-based + 1)
+                                ArabicNumbers().convert(
+                                    (_scrubPage.round() + 1).clamp(1, 604)),
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: widget.popupTextColor ??
+                                      widget.pageNumberScrubbingTextColor ??
+                                      Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
         if (_isSearchOpen) _buildSearchOverlay(),
       ],
     );
+  }
+
+  // --- Scrubbing Logic --
+  // 0-based index for logic, 0 to 603
+  double _scrubPage = 0.0;
+  double _startScrubPage = 0.0; // To store initial page at scrub start
+
+  void _handleScrubStart(LongPressStartDetails details) {
+    setState(() {
+      // Capture current page (0-based)
+      _startScrubPage = _pageController.page ?? 0.0;
+      _scrubPage = _startScrubPage;
+    });
+    _scrubController.forward();
+    HapticFeedback.selectionClick();
+  }
+
+  void _handleScrubUpdate(LongPressMoveUpdateDetails details) {
+    // Reverse logic: PageView(reverse: true) means swipe left (-dx) goes to NEXT page (Index++)
+    // So -dx adds to index.
+
+    // Sensitivity: 150px drag = 10 pages? ~0.06 pages/px
+    // YouTube style is quite sensitive. Let's try 0.1
+    const double sensitivity = 0.1;
+
+    // Note: details.localOffsetFromOrigin is the cumulated offset from start
+    double delta = details.localOffsetFromOrigin.dx;
+
+    // If delta is negative (left swipe), we increase page index
+    double newPage = _startScrubPage - (delta * sensitivity);
+
+    // Clamp 0 to 603 (Page count is 604)
+    newPage = newPage.clamp(0.0, 603.0);
+
+    setState(() {
+      if (newPage.round() != _scrubPage.round()) {
+        HapticFeedback.selectionClick();
+      }
+      _scrubPage = newPage;
+    });
+  }
+
+  void _handleScrubEnd(LongPressEndDetails details) {
+    _scrubController.reverse();
+
+    if (!_pageController.hasClients) return;
+
+    final int targetIndex = _scrubPage.round().clamp(0, 603);
+    final int currentIndex = _pageController.page?.round() ?? 0;
+
+    // Only animate if changed
+    if (targetIndex != currentIndex) {
+      _pageController.animateToPage(
+        targetIndex,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   /// Builds the search overlay sheet when [_isSearchOpen] is true.

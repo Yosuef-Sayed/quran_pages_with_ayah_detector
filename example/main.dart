@@ -40,6 +40,10 @@ class _MainAppState extends State<MainApp> {
           // NOTE: The search feature requires QCF fonts to be registered in pubspec.yaml.
           // The 'quran_assets_cli' tool handles this automatically.
           highlightDuration: const Duration(milliseconds: 300),
+          // New in 1.2.0
+          pageNumberDesign: PageNumberDesign.outlined,
+          pageNumberScrubbingBackgroundColor: Colors.teal.withOpacity(0.8),
+          pageNumberScrubbingTextColor: Colors.white,
           onAyahTap: (sura, ayah, pageNumber) {
             log("Sura: $sura, Ayah: $ayah, Page: $pageNumber");
           },
