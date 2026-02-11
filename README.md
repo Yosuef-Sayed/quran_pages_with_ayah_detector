@@ -100,14 +100,48 @@ QuranPageView(
   pageNumberColor: Colors.grey,
   searchResultGroupTitleColor: Colors.black87,
   themeModeAdaption: true, // Automatically adapt colors for Dark/Light mode
-  // New in 1.2.0
-  pageNumberDesign: PageNumberDesign.outlined, // Choose from classic, pill, outlined, glass, none
-  pageNumberScrubbingBackgroundColor: Colors.black87,
-  pageNumberScrubbingTextColor: Colors.white,
-  popupBackgroundColor: Colors.white,
-  popupTextColor: Colors.black,
+  // New in 1.2.0: Ayah Menu & Custom Actions
+  customAyahActions: [
+    AyahActionOption(
+      title: 'إضافة للمفضلة',
+      icon: Icons.favorite_border,
+      onPress: (surah, ayah, page) {
+        print('Ayah Added to Favorites');
+      },
+    ),
+  ],
+  // Customize the menu colors
+  ayahMenuBackgroundColor: Colors.white,
+  ayahMenuTextColor: Colors.black,
+  ayahMenuIconColor: Colors.blue,
+  themeModeAdaption: true,
 )
 ```
+
+## Features Deep Dive
+
+### Ayah Long-Press Menu
+
+Long-pressing any ayah opens a customizable menu. By default, it includes:
+
+- **Copy Ayah**: Copies the ayah text to the clipboard.
+- **Save as Image**: Generates a beautiful image of the ayah with its Surah header.
+
+### Save as Image Feature
+
+This feature generates a `.png` of the selected verse.
+
+**Note for developers:**
+If you encounter `MissingPluginException` for `path_provider`, please **perform a full rebuild** of your app (stop and start again) rather than just hot reloading, as this feature requires native plugin linking.
+
+#### Platform Permissions
+
+- **Android**: To save images to the Downloads folder, you may need to add the following to your `AndroidManifest.xml`:
+  ```xml
+  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+  ```
+  _(Note: For Android 10+, images are saved to the app's document directory if Downloads is inaccessible)._
+- **iOS/macOS**: No special permissions are required for saving to the Documents folder, but ensure you have rebuilt the app to link the `path_provider` plugin.
 
 ## UI Customization
 

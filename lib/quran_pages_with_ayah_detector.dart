@@ -3,18 +3,43 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:ui' as ui;
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 import 'package:quran_pages_with_ayah_detector/data/arabic_numbers.dart';
 import 'package:quran_pages_with_ayah_detector/data/ayah_data.dart';
+import 'package:quran_pages_with_ayah_detector/data/image_surah_glyph.dart';
 import 'package:quran_pages_with_ayah_detector/data/juz_glyph.dart';
 import 'package:quran_pages_with_ayah_detector/data/sura_glyph.dart';
 import 'package:quran_pages_with_ayah_detector/data/quran_clean_plain.dart';
 import 'package:quran_pages_with_ayah_detector/data/sura_ayah_to_page.dart';
 import 'package:quran_pages_with_ayah_detector/data/quran_text_data.dart';
-import 'package:flutter/services.dart';
 import 'package:quran/quran.dart' as quran;
 import 'package:quran_pages_with_ayah_detector/data/surah_number_of_ayahs.dart';
 import 'package:quran_pages_with_ayah_detector/data/is_madani.dart';
 import 'package:quran_pages_with_ayah_detector/data/hizb_quarters_data.dart';
+import 'package:quran_pages_with_ayah_detector/data/quran_text.dart';
+
+/// Represents a custom action option for the ayah long-press menu.
+class AyahActionOption {
+  /// The title/label of the action.
+  final String title;
+
+  /// The icon to display for this action.
+  final IconData icon;
+
+  /// Callback function when this action is tapped.
+  /// Provides surah number, ayah number, and page number.
+  final void Function(int surah, int ayah, int pageNumber) onPress;
+
+  /// Creates an [AyahActionOption] with the specified properties.
+  const AyahActionOption({
+    required this.title,
+    required this.icon,
+    required this.onPress,
+  });
+}
 
 /// Defines the visual style of the page number container.
 enum PageNumberDesign {
@@ -275,6 +300,25 @@ class QuranPageView extends StatefulWidget {
   /// Custom height for the popup.
   final double? popupHeight;
 
+  /// Background color for the ayah action menu card.
+  final Color ayahMenuBackgroundColor;
+
+  /// Background color for the ayah action menu card in dark mode.
+  final Color ayahMenuDarkBackgroundColor;
+
+  /// Text color for ayah menu items.
+  final Color ayahMenuTextColor;
+
+  /// Icon color for ayah menu items.
+  final Color ayahMenuIconColor;
+
+  /// Divider color in the ayah menu.
+  final Color ayahMenuDividerColor;
+
+  /// List of custom action options to add to the ayah menu.
+  /// These will be displayed alongside the default "Copy" and "Save Image" options.
+  final List<AyahActionOption> customAyahActions;
+
   /// Creates a [QuranPageView] with customizable behavior and styling.
   const QuranPageView({
     super.key,
@@ -326,6 +370,12 @@ class QuranPageView extends StatefulWidget {
     this.popupTextColor,
     this.popupWidth,
     this.popupHeight,
+    this.ayahMenuBackgroundColor = Colors.white,
+    this.ayahMenuDarkBackgroundColor = const Color(0xFF1E1E1E),
+    this.ayahMenuTextColor = Colors.black,
+    this.ayahMenuIconColor = Colors.blue,
+    this.ayahMenuDividerColor = const Color(0xFFE0E0E0),
+    this.customAyahActions = const [],
     this.controller,
   });
 
@@ -472,9 +522,13 @@ class _QuranPageViewState extends State<QuranPageView>
 
   /// Retrieves the first page of a given Juz.
   int _getJuzStartPage(int juzNumber) {
+    // Juz glyphs: 1-23 use 0xFC39-0xFC4F, 24-30 use 0xFC30-0xFC36
+    final int targetCode =
+        juzNumber <= 23 ? 0xFC38 + juzNumber : 0xFC30 + (juzNumber - 24);
+
     for (int p = 1; p <= 604; p++) {
       final glyph = juzGlyph[p];
-      if (glyph != null && glyph.codeUnitAt(0) == 0xFC38 + juzNumber) {
+      if (glyph != null && glyph.codeUnitAt(0) == targetCode) {
         return p;
       }
     }
@@ -864,7 +918,7 @@ class _QuranPageViewState extends State<QuranPageView>
                                               textDirection: TextDirection.rtl,
                                               children: [
                                                 Text(
-                                                  "\uFC38${String.fromCharCode(0xFC38 + juzNum)}",
+                                                  "\uFC38${String.fromCharCode(juzNum <= 23 ? 0xFC38 + juzNum : 0xFC30 + (juzNum - 24))}",
                                                   style: TextStyle(
                                                     fontFamily:
                                                         widget.fontFamilyName,
@@ -894,6 +948,14 @@ class _QuranPageViewState extends State<QuranPageView>
                                                 Navigator.pop(context);
                                                 final p =
                                                     suraAyahToPage[s]?[1] ?? 1;
+                                                // Highlight the first ayah of the selected Surah
+                                                if (mounted) {
+                                                  setState(() {
+                                                    _highlightedAyahKey =
+                                                        '${s}_1';
+                                                    _highlightedPage = p;
+                                                  });
+                                                }
                                                 _jumpToPage(p);
                                               },
                                               child: Container(
@@ -1052,6 +1114,12 @@ class _QuranPageViewState extends State<QuranPageView>
                   }
                 },
                 quarters: _pageToQuarters[page] ?? [],
+                ayahMenuBackgroundColor: widget.ayahMenuBackgroundColor,
+                ayahMenuDarkBackgroundColor: widget.ayahMenuDarkBackgroundColor,
+                ayahMenuTextColor: widget.ayahMenuTextColor,
+                ayahMenuIconColor: widget.ayahMenuIconColor,
+                ayahMenuDividerColor: widget.ayahMenuDividerColor,
+                customAyahActions: widget.customAyahActions,
               );
             },
           ),
@@ -1550,6 +1618,24 @@ class _QuranPage extends StatefulWidget {
   /// Quarters of hizb that start on this page.
   final List<int>? quarters;
 
+  /// Background color for the ayah action menu.
+  final Color ayahMenuBackgroundColor;
+
+  /// Background color for the ayah action menu in dark mode.
+  final Color ayahMenuDarkBackgroundColor;
+
+  /// Text color for ayah menu items.
+  final Color ayahMenuTextColor;
+
+  /// Icon color for ayah menu items.
+  final Color ayahMenuIconColor;
+
+  /// Divider color in the ayah menu.
+  final Color ayahMenuDividerColor;
+
+  /// List of custom action options for the ayah menu.
+  final List<AyahActionOption> customAyahActions;
+
   /// Creates a [_QuranPage] with the given configuration.
   const _QuranPage({
     required this.pageNumber,
@@ -1577,6 +1663,12 @@ class _QuranPage extends StatefulWidget {
     this.highlightedAyahKey,
     this.onClearSelection,
     this.quarters,
+    required this.ayahMenuBackgroundColor,
+    required this.ayahMenuDarkBackgroundColor,
+    required this.ayahMenuTextColor,
+    required this.ayahMenuIconColor,
+    required this.ayahMenuDividerColor,
+    required this.customAyahActions,
   });
 
   @override
@@ -1592,6 +1684,18 @@ class _QuranPageState extends State<_QuranPage> {
 
   /// The key of the currently selected ayah.
   String? _selectedAyahKey;
+
+  /// Whether the ayah menu is currently visible.
+  bool _isAyahMenuVisible = false;
+
+  /// The surah number for the ayah menu.
+  int? _menuSurah;
+
+  /// The ayah number for the ayah menu.
+  int? _menuAyah;
+
+  /// Global key for the ayah menu overlay.
+  final GlobalKey _menuKey = GlobalKey();
 
   @override
 
@@ -1696,6 +1800,386 @@ class _QuranPageState extends State<_QuranPage> {
     }
   }
 
+  /// Gets the plain text of an ayah from quranText data.
+  String _getAyahText(int surah, int ayah) {
+    try {
+      final verse = quranText.firstWhere(
+        (v) => v['surah_number'] == surah && v['verse_number'] == ayah,
+        orElse: () => {'content': ''},
+      );
+      return verse['content'] as String? ?? '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  /// Copies the ayah text to clipboard.
+  Future<void> _copyAyahToClipboard(int surah, int ayah) async {
+    final text = _getAyahText(surah, ayah);
+    if (text.isNotEmpty) {
+      await Clipboard.setData(ClipboardData(text: text));
+    }
+    _hideAyahMenu();
+  }
+
+  /// Saves the ayah as an image with surah header.
+  /// Saves the ayah as an image with surah header.
+  Future<void> _saveAyahAsImage(int surah, int ayah) async {
+    try {
+      // 1. Get correct page for the ayah to determine font and QFC text
+      // We need the page where the ayah is located to get the correct QFC text.
+      final page = suraAyahToPage[surah]?[ayah] ?? 1;
+
+      // 2. Load the QFC font for that page
+      await FontManager.loadFont(page);
+      final ayahFontFamily = 'QCF_P${page.toString().padLeft(3, '0')}';
+
+      // 3. Get the QFC text
+      // We implement the lookup manually by reconstructing the page's ayah list
+      String ayahText = '';
+      if (page >= 1 && page <= quranTextData.length) {
+        final pageLines = quranTextData[page - 1];
+
+        // Filter ayahRows (List<Map>) to get unique ayahs for this page
+        final Set<String> seen = {};
+        final List<Map<String, int>> pageAyahs = [];
+
+        for (final row in ayahRows) {
+          if (row['page_number'] == page) {
+            final s = row['sura_number'] as int;
+            final a = row['ayah_number'] as int;
+            final key = '$s:$a';
+            if (!seen.contains(key)) {
+              seen.add(key);
+              pageAyahs.add({'surah': s, 'ayah': a});
+            }
+          }
+        }
+
+        // Sort to match reading order (Surah then Ayah)
+        pageAyahs.sort((a, b) {
+          if (a['surah'] != b['surah']) {
+            return a['surah']!.compareTo(b['surah']!);
+          }
+          return a['ayah']!.compareTo(b['ayah']!);
+        });
+
+        // Find index of the unique ayah
+        final index = pageAyahs
+            .indexWhere((e) => e['surah'] == surah && e['ayah'] == ayah);
+
+        if (index != -1 && index < pageLines.length) {
+          ayahText = pageLines[index];
+        }
+      }
+
+      if (ayahText.isEmpty) {
+        _hideAyahMenu();
+        return;
+      }
+
+      // 4. Get Surah Name Glyph (Use the start page of the Surah)
+      final surahGlyphChar = imageSuraGlyph[surah] ?? '';
+
+      // Create a custom painter to render the image
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      const width = 800.0;
+      const padding = 50.0;
+
+      // Draw background
+      final paint = Paint()..color = Colors.white;
+      canvas.drawRect(Rect.fromLTWH(0, 0, width, 2000), paint);
+
+      // Draw surah name container (ornament)
+      final containerPainter = TextPainter(
+        text: TextSpan(
+          text: '\u00F2',
+          style: TextStyle(
+            fontFamily: widget.fontFamilyName, // Use the app's decorative font
+            fontSize: 80,
+            color: Colors.black,
+          ),
+        ),
+        textDirection: TextDirection.rtl,
+      );
+      containerPainter.layout(maxWidth: width - padding * 2);
+      final containerX = (width - containerPainter.width) / 2;
+      containerPainter.paint(canvas, Offset(containerX, (padding - 40)));
+
+      // Draw surah name on top of the container
+      final namePainter = TextPainter(
+        text: TextSpan(
+          text: "\u005C$surahGlyphChar",
+          style: TextStyle(
+            fontFamily: widget.fontFamilyName,
+            fontSize: 50,
+            color: Colors.black,
+          ),
+        ),
+        textDirection: TextDirection.rtl,
+      );
+      namePainter.layout(maxWidth: width - padding * 2);
+      final nameX = (width - namePainter.width) / 2;
+      namePainter.paint(canvas, Offset(nameX, padding));
+
+      // Draw ayah text with QFC font
+      final ayahY =
+          padding + max(containerPainter.height, namePainter.height) + 50;
+      final ayahPainter = TextPainter(
+        text: TextSpan(
+          text: ayahText,
+          style: TextStyle(
+            fontFamily: ayahFontFamily, // Use the correct QFC page font
+            fontSize: 49,
+            color: Colors.black,
+            height: 1.8,
+          ),
+        ),
+        textDirection: TextDirection.rtl,
+        textAlign: TextAlign.center,
+      );
+      ayahPainter.layout(maxWidth: width - padding * 2);
+      final ayahX = (width - ayahPainter.width) / 2;
+      ayahPainter.paint(canvas, Offset(ayahX, (ayahY - 80)));
+
+      // Calculate final height
+      final finalHeight = (ayahY + ayahPainter.height + padding) - 100;
+
+      // Convert to image
+      final picture = recorder.endRecording();
+      final img = await picture.toImage(width.toInt(), finalHeight.toInt());
+      final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+      final buffer = byteData!.buffer.asUint8List();
+
+      // Save to downloads/pictures directory for emulators and physical devices
+      final directory = Platform.isAndroid
+          ? Directory('/storage/emulated/0/Download/QuranPages')
+          : await getDownloadsDirectory();
+
+      if (directory != null && !await directory.exists()) {
+        await directory.create(recursive: true);
+      }
+
+      final fileName =
+          'ayah_${surah}_${ayah}_${DateTime.now().millisecondsSinceEpoch}.png';
+      final file = File('${directory?.path}/$fileName');
+      await file.writeAsBytes(buffer);
+
+      debugPrint('Image saved to: ${file.path}');
+    } on MissingPluginException catch (e) {
+      debugPrint('Error saving image: MissingPluginException. '
+          'This usually happens because the app needs to be fully rebuilt '
+          'after adding a new dependency (path_provider). '
+          'Please stop and restart your app. Error: $e');
+    } catch (e) {
+      debugPrint('Error saving image: $e');
+    } finally {
+      _hideAyahMenu();
+    }
+  }
+
+  /// Shows the ayah action menu and highlights the ayah.
+  void _showAyahMenu(int surah, int ayah) {
+    setState(() {
+      _isAyahMenuVisible = true;
+      _menuSurah = surah;
+      _menuAyah = ayah;
+      _selectedAyahKey = '${surah}_$ayah'; // Highlight the ayah
+    });
+  }
+
+  /// Hides the ayah action menu and unhighlights the ayah.
+  void _hideAyahMenu() {
+    setState(() {
+      _isAyahMenuVisible = false;
+      _menuSurah = null;
+      _menuAyah = null;
+      _selectedAyahKey = null; // Unhighlight the ayah
+    });
+  }
+
+  /// Builds the ayah action menu overlay.
+  Widget _buildAyahMenu() {
+    if (!_isAyahMenuVisible || _menuSurah == null || _menuAyah == null) {
+      return const SizedBox.shrink();
+    }
+
+    final isDark = widget.themeModeAdaption &&
+        Theme.of(context).brightness == Brightness.dark;
+    final effectiveBgColor = isDark
+        ? widget.ayahMenuDarkBackgroundColor
+        : widget.ayahMenuBackgroundColor;
+    final effectiveTextColor = widget.themeModeAdaption
+        ? (isDark ? Colors.white : Colors.black)
+        : widget.ayahMenuTextColor;
+    final effectiveIconColor = widget.themeModeAdaption
+        ? (isDark ? Colors.white70 : Colors.blue)
+        : widget.ayahMenuIconColor;
+    final effectiveDividerColor = widget.themeModeAdaption
+        ? (isDark ? Colors.white24 : const Color(0xFFE0E0E0))
+        : widget.ayahMenuDividerColor;
+
+    // Default options
+    final defaultOptions = [
+      {
+        'title': 'نسخ الآية',
+        'icon': Icons.copy,
+        'onTap': () => _copyAyahToClipboard(_menuSurah!, _menuAyah!),
+      },
+      {
+        'title': 'حفظ كصورة',
+        'icon': Icons.image,
+        'onTap': () => _saveAyahAsImage(_menuSurah!, _menuAyah!),
+      },
+    ];
+
+    return Positioned.fill(
+      child: GestureDetector(
+        onTap: _hideAyahMenu,
+        behavior: HitTestBehavior.translucent,
+        child: Stack(
+          children: [
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 80,
+              child: Center(
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    key: _menuKey,
+                    constraints: const BoxConstraints(maxWidth: 300),
+                    decoration: BoxDecoration(
+                      color: effectiveBgColor,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.15),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Default options
+                        for (int i = 0; i < defaultOptions.length; i++) ...[
+                          InkWell(
+                            onTap: defaultOptions[i]['onTap'] as VoidCallback,
+                            borderRadius: i == 0 &&
+                                    widget.customAyahActions.isEmpty &&
+                                    defaultOptions.length == 1
+                                ? BorderRadius.circular(16)
+                                : i == 0
+                                    ? const BorderRadius.vertical(
+                                        top: Radius.circular(16))
+                                    : i == defaultOptions.length - 1 &&
+                                            widget.customAyahActions.isEmpty
+                                        ? const BorderRadius.vertical(
+                                            bottom: Radius.circular(16))
+                                        : null,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 14),
+                              child: Row(
+                                textDirection: TextDirection.rtl,
+                                children: [
+                                  Icon(
+                                    defaultOptions[i]['icon'] as IconData,
+                                    color: effectiveIconColor,
+                                    size: 22,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    defaultOptions[i]['title'] as String,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      color: effectiveTextColor,
+                                    ),
+                                    textDirection: TextDirection.rtl,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          if (i < defaultOptions.length - 1 ||
+                              widget.customAyahActions.isNotEmpty)
+                            Divider(
+                              color: effectiveDividerColor,
+                              height: 1,
+                              thickness: 0.5,
+                              indent: 20,
+                              endIndent: 20,
+                            ),
+                        ],
+                        // Custom options
+                        for (int i = 0;
+                            i < widget.customAyahActions.length;
+                            i++) ...[
+                          InkWell(
+                            onTap: () {
+                              widget.customAyahActions[i].onPress(
+                                _menuSurah!,
+                                _menuAyah!,
+                                widget.pageNumber,
+                              );
+                              _hideAyahMenu();
+                            },
+                            borderRadius:
+                                i == widget.customAyahActions.length - 1
+                                    ? const BorderRadius.vertical(
+                                        bottom: Radius.circular(16))
+                                    : null,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 14),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                textDirection: TextDirection.rtl,
+                                children: [
+                                  Icon(
+                                    widget.customAyahActions[i].icon,
+                                    color: effectiveIconColor,
+                                    size: 22,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    widget.customAyahActions[i].title,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      color: effectiveTextColor,
+                                    ),
+                                    textDirection: TextDirection.rtl,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          if (i < widget.customAyahActions.length - 1)
+                            Divider(
+                              color: effectiveDividerColor,
+                              height: 1,
+                              thickness: 0.5,
+                              indent: 20,
+                              endIndent: 20,
+                            ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// Returns a formatted string describing the Hizb and Quarter for a given [q].
   String _getQuarterDetail(int q) {
     final hizbNum = ((q - 1) ~/ 4) + 1;
@@ -1741,17 +2225,252 @@ class _QuranPageState extends State<_QuranPage> {
         final scrollScale = scaleWidth;
         final scrollDispH = imgH * scrollScale;
 
-        return GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onTap: _clearSelection,
-          child: SingleChildScrollView(
-            physics: const ClampingScrollPhysics(),
+        return Stack(
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _clearSelection,
+              child: SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
+                child: Column(
+                  children: [
+                    widget.showPageTopBar
+                        ? SizedBox(
+                            height: topTextHeight,
+                            width: containerW,
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 30),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                textDirection: TextDirection.rtl,
+                                children: [
+                                  Expanded(
+                                    child: Align(
+                                      alignment: Alignment.centerRight,
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          if (widget.onJuzNumberTap != null) {
+                                            widget.onJuzNumberTap!();
+                                          }
+                                        },
+                                        child: Text(
+                                          "\uFC38${juzGlyph[widget.pageNumber]}",
+                                          style: TextStyle(
+                                              fontSize: 22,
+                                              color: widget.themeModeAdaption
+                                                  ? IconTheme.of(context).color
+                                                  : widget.topBarTextColor,
+                                              fontFamily:
+                                                  widget.fontFamilyName),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  if (widget.showSearchIcon)
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onTap: widget.onSearchTap,
+                                        child: Icon(
+                                          Icons.search,
+                                          color: widget.searchIconColor,
+                                          size: 26,
+                                        ),
+                                      ),
+                                    ),
+                                  Expanded(
+                                    child: Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          if (widget.onSuraNameTap != null) {
+                                            widget.onSuraNameTap!();
+                                          }
+                                        },
+                                        child: Text(
+                                          "${suraGlyph[widget.pageNumber]}\u005C",
+                                          style: TextStyle(
+                                              fontSize: 22,
+                                              color: widget.themeModeAdaption
+                                                  ? IconTheme.of(context).color
+                                                  : widget.topBarTextColor,
+                                              fontFamily:
+                                                  widget.fontFamilyName),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : const SizedBox(),
+                    SizedBox(
+                      width: containerW,
+                      height: scrollDispH,
+                      child: Stack(
+                        children: [
+                          Image.asset(
+                            '${widget.pageImagePath}${widget.pageNumber}.png',
+                            width: containerW,
+                            height: scrollDispH,
+                            fit: BoxFit.fill,
+                            color: widget.themeModeAdaption
+                                ? IconTheme.of(context).color
+                                : widget.quranTextColor,
+                          ),
+                          for (final s in _segments)
+                            Positioned(
+                              left: s.minX * scrollScale,
+                              top: s.minY * scrollScale,
+                              width: s.width * scrollScale,
+                              height: s.height * scrollScale,
+                              child: GestureDetector(
+                                onLongPress: () {
+                                  _showAyahMenu(s.sura, s.ayah);
+                                  if (widget.onAyahTap != null) {
+                                    widget.onAyahTap!(
+                                        s.sura, s.ayah, widget.pageNumber);
+                                  }
+                                },
+                                child: Stack(
+                                  children: [
+                                    AnimatedOpacity(
+                                      opacity: widget.debuggingMode
+                                          ? 1.0
+                                          : (_selectedAyahKey ==
+                                                  '${s.sura}_${s.ayah}'
+                                              ? 1.0
+                                              : 0.0),
+                                      duration: widget.highlightDuration,
+                                      curve: Curves.easeInOut,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: widget.debuggingMode
+                                              ? Colors.red.withOpacity(.22)
+                                              : widget.highlightColor
+                                                  .withOpacity(.22),
+                                          border: Border.all(
+                                            color: widget.debuggingMode
+                                                ? Colors.red.withOpacity(.5)
+                                                : (_selectedAyahKey ==
+                                                        '${s.sura}_${s.ayah}'
+                                                    ? widget.highlightColor
+                                                        .withOpacity(.5)
+                                                    : Colors.transparent),
+                                            width: 1,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Container(color: Colors.transparent),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    widget.showPageNumber
+                        ? SizedBox(
+                            height: bottomTextHeight,
+                            child: Align(
+                              alignment: widget.pageNumber % 2 == 0
+                                  ? Alignment.bottomLeft
+                                  : Alignment.bottomRight,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 4),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: widget.pageNumber % 2 == 0
+                                      ? CrossAxisAlignment.start
+                                      : CrossAxisAlignment.end,
+                                  children: [
+                                    if (widget.quarters != null &&
+                                        widget.quarters!.isNotEmpty)
+                                      for (int q in widget.quarters!)
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(bottom: 4),
+                                          child: Text(
+                                            _getQuarterDetail(q),
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                              color: widget.themeModeAdaption
+                                                  ? IconTheme.of(context).color
+                                                  : widget.pageNumberColor,
+                                            ),
+                                            textDirection: TextDirection.rtl,
+                                          ),
+                                        ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: widget.themeModeAdaption
+                                            ? (Theme.of(context).brightness ==
+                                                    Brightness.dark
+                                                ? Colors.white.withOpacity(0.1)
+                                                : Colors.black
+                                                    .withOpacity(0.05))
+                                            : widget.pageNumberColor
+                                                .withOpacity(0.05),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                            color: widget.themeModeAdaption
+                                                ? (Theme.of(context)
+                                                            .brightness ==
+                                                        Brightness.dark
+                                                    ? Colors.white24
+                                                    : Colors.black12)
+                                                : widget.pageNumberColor
+                                                    .withOpacity(0.1)),
+                                      ),
+                                      child: Text(
+                                        ArabicNumbers()
+                                            .convert(widget.pageNumber)
+                                            .toString(),
+                                        style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: widget.themeModeAdaption
+                                                ? IconTheme.of(context).color
+                                                : widget.pageNumberColor),
+                                        textDirection: TextDirection.rtl,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )
+                        : const SizedBox(),
+                  ],
+                ),
+              ),
+            ),
+            // Ayah menu overlay
+            if (_isAyahMenuVisible) _buildAyahMenu(),
+          ],
+        );
+      }
+
+      return Stack(
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: _clearSelection,
             child: Column(
+              mainAxisSize: MainAxisSize.max,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 widget.showPageTopBar
                     ? SizedBox(
                         height: topTextHeight,
-                        width: containerW,
+                        width: normalDispW,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 30),
                           child: Row(
@@ -1785,7 +2504,9 @@ class _QuranPageState extends State<_QuranPage> {
                                     onTap: widget.onSearchTap,
                                     child: Icon(
                                       Icons.search,
-                                      color: widget.searchIconColor,
+                                      color: widget.themeModeAdaption
+                                          ? IconTheme.of(context).color
+                                          : widget.searchIconColor,
                                       size: 26,
                                     ),
                                   ),
@@ -1818,31 +2539,32 @@ class _QuranPageState extends State<_QuranPage> {
                     : const SizedBox(),
                 SizedBox(
                   width: containerW,
-                  height: scrollDispH,
+                  height: normalDispH,
                   child: Stack(
                     children: [
-                      Image.asset(
-                        '${widget.pageImagePath}${widget.pageNumber}.png',
-                        width: containerW,
-                        height: scrollDispH,
-                        fit: BoxFit.fill,
-                        color: widget.themeModeAdaption
-                            ? IconTheme.of(context).color
-                            : widget.quranTextColor,
+                      Positioned(
+                        left: (containerW - normalDispW) / 2,
+                        top: 0,
+                        width: normalDispW,
+                        height: normalDispH,
+                        child: Image.asset(
+                          '${widget.pageImagePath}${widget.pageNumber}.png',
+                          fit: BoxFit.contain,
+                          color: widget.themeModeAdaption
+                              ? IconTheme.of(context).color
+                              : widget.quranTextColor,
+                        ),
                       ),
                       for (final s in _segments)
                         Positioned(
-                          left: s.minX * scrollScale,
-                          top: s.minY * scrollScale,
-                          width: s.width * scrollScale,
-                          height: s.height * scrollScale,
+                          left: (containerW - normalDispW) / 2 +
+                              s.minX * normalScale,
+                          top: s.minY * normalScale,
+                          width: s.width * normalScale,
+                          height: s.height * normalScale,
                           child: GestureDetector(
                             onLongPress: () {
-                              final key = '${s.sura}_${s.ayah}';
-                              setState(() {
-                                _selectedAyahKey =
-                                    _selectedAyahKey == key ? null : key;
-                              });
+                              _showAyahMenu(s.sura, s.ayah);
                               if (widget.onAyahTap != null) {
                                 widget.onAyahTap!(
                                     s.sura, s.ayah, widget.pageNumber);
@@ -1895,64 +2617,169 @@ class _QuranPageState extends State<_QuranPage> {
                               : Alignment.bottomRight,
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 4),
+                                horizontal: 16, vertical: 8),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: widget.pageNumber % 2 == 0
                                   ? CrossAxisAlignment.start
                                   : CrossAxisAlignment.end,
                               children: [
-                                if (widget.quarters != null &&
-                                    widget.quarters!.isNotEmpty)
-                                  for (int q in widget.quarters!)
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 4),
-                                      child: Text(
-                                        _getQuarterDetail(q),
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w500,
-                                          color: widget.themeModeAdaption
-                                              ? IconTheme.of(context).color
-                                              : widget.pageNumberColor,
+                                (() {
+                                  // Helper to build the quarter text widgets
+                                  List<Widget> quarterWidgets = [];
+                                  if (widget.quarters != null &&
+                                      widget.quarters!.isNotEmpty) {
+                                    for (int q in widget.quarters!) {
+                                      quarterWidgets.add(
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(bottom: 6),
+                                          child: Text(
+                                            _getQuarterDetail(q),
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: widget.themeModeAdaption
+                                                  ? IconTheme.of(context).color
+                                                  : widget.pageNumberColor,
+                                            ),
+                                            textDirection: TextDirection.rtl,
+                                          ),
                                         ),
-                                        textDirection: TextDirection.rtl,
+                                      );
+                                    }
+                                  }
+
+                                  if (widget.pageNumberDesign ==
+                                      PageNumberDesign.none) {
+                                    return Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          widget.pageNumber % 2 == 0
+                                              ? CrossAxisAlignment.start
+                                              : CrossAxisAlignment.end,
+                                      children: [
+                                        ...quarterWidgets,
+                                        Text(
+                                          ArabicNumbers()
+                                              .convert(widget.pageNumber)
+                                              .toString(),
+                                          style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: widget.themeModeAdaption
+                                                  ? IconTheme.of(context).color
+                                                  : widget.pageNumberColor),
+                                          textDirection: TextDirection.rtl,
+                                        ),
+                                      ],
+                                    );
+                                  }
+
+                                  final bool isDark =
+                                      Theme.of(context).brightness ==
+                                          Brightness.dark;
+
+                                  // Effective colors
+                                  final Color effectiveBg = widget
+                                          .pageNumberBackgroundColor ??
+                                      (widget.themeModeAdaption
+                                          ? (isDark
+                                              ? Colors.white.withOpacity(0.12)
+                                              : Colors.black.withOpacity(0.06))
+                                          : widget.pageNumberColor
+                                              .withOpacity(0.06));
+
+                                  final Color effectiveBorder =
+                                      widget.pageNumberBorderColor ??
+                                          (widget.themeModeAdaption
+                                              ? (isDark
+                                                  ? Colors.white24
+                                                  : Colors.black12)
+                                              : widget.pageNumberColor
+                                                  .withOpacity(0.15));
+
+                                  BoxDecoration deco;
+                                  switch (widget.pageNumberDesign) {
+                                    case PageNumberDesign.pill:
+                                      deco = BoxDecoration(
+                                        color: effectiveBg,
+                                        borderRadius: BorderRadius.circular(24),
+                                        border:
+                                            Border.all(color: effectiveBorder),
+                                      );
+                                      break;
+                                    case PageNumberDesign.classic:
+                                      deco = BoxDecoration(
+                                        color: effectiveBg,
+                                        borderRadius: BorderRadius.circular(14),
+                                        border:
+                                            Border.all(color: effectiveBorder),
+                                      );
+                                      break;
+                                    case PageNumberDesign.glass:
+                                      deco = BoxDecoration(
+                                        color: isDark
+                                            ? Colors.white.withOpacity(0.12)
+                                            : Colors.white.withOpacity(0.35),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                            color:
+                                                Colors.white.withOpacity(0.2)),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color:
+                                                Colors.black.withOpacity(0.04),
+                                            blurRadius: 8,
+                                          )
+                                        ],
+                                      );
+                                      break;
+                                    case PageNumberDesign.outlined:
+                                    default:
+                                      deco = BoxDecoration(
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                            color: widget
+                                                    .pageNumberBorderColor ??
+                                                (widget.themeModeAdaption
+                                                    ? (isDark
+                                                        ? Colors.white70
+                                                        : Colors.black54)
+                                                    : widget.pageNumberColor)),
+                                      );
+                                      break;
+                                  }
+
+                                  return IntrinsicWidth(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 14, vertical: 8),
+                                      decoration: deco,
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.center,
+                                        children: [
+                                          ...quarterWidgets,
+                                          Text(
+                                            ArabicNumbers()
+                                                .convert(widget.pageNumber)
+                                                .toString(),
+                                            style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: widget.themeModeAdaption
+                                                    ? IconTheme.of(context)
+                                                        .color
+                                                    : widget.pageNumberColor),
+                                            textDirection: TextDirection.rtl,
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: widget.themeModeAdaption
-                                        ? (Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? Colors.white.withOpacity(0.1)
-                                            : Colors.black.withOpacity(0.05))
-                                        : widget.pageNumberColor
-                                            .withOpacity(0.05),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                        color: widget.themeModeAdaption
-                                            ? (Theme.of(context).brightness ==
-                                                    Brightness.dark
-                                                ? Colors.white24
-                                                : Colors.black12)
-                                            : widget.pageNumberColor
-                                                .withOpacity(0.1)),
-                                  ),
-                                  child: Text(
-                                    ArabicNumbers()
-                                        .convert(widget.pageNumber)
-                                        .toString(),
-                                    style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: widget.themeModeAdaption
-                                            ? IconTheme.of(context).color
-                                            : widget.pageNumberColor),
-                                    textDirection: TextDirection.rtl,
-                                  ),
-                                ),
+                                  );
+                                }()),
                               ],
                             ),
                           ),
@@ -1962,331 +2789,9 @@ class _QuranPageState extends State<_QuranPage> {
               ],
             ),
           ),
-        );
-      }
-
-      return GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTap: _clearSelection,
-        child: Column(
-          mainAxisSize: MainAxisSize.max,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            widget.showPageTopBar
-                ? SizedBox(
-                    height: topTextHeight,
-                    width: normalDispW,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 30),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        textDirection: TextDirection.rtl,
-                        children: [
-                          Expanded(
-                            child: Align(
-                              alignment: Alignment.centerRight,
-                              child: GestureDetector(
-                                onTap: () {
-                                  if (widget.onJuzNumberTap != null) {
-                                    widget.onJuzNumberTap!();
-                                  }
-                                },
-                                child: Text(
-                                  "\uFC38${juzGlyph[widget.pageNumber]}",
-                                  style: TextStyle(
-                                      fontSize: 22,
-                                      color: widget.themeModeAdaption
-                                          ? IconTheme.of(context).color
-                                          : widget.topBarTextColor,
-                                      fontFamily: widget.fontFamilyName),
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (widget.showSearchIcon)
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: widget.onSearchTap,
-                                child: Icon(
-                                  Icons.search,
-                                  color: widget.themeModeAdaption
-                                      ? IconTheme.of(context).color
-                                      : widget.searchIconColor,
-                                  size: 26,
-                                ),
-                              ),
-                            ),
-                          Expanded(
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: GestureDetector(
-                                onTap: () {
-                                  if (widget.onSuraNameTap != null) {
-                                    widget.onSuraNameTap!();
-                                  }
-                                },
-                                child: Text(
-                                  "${suraGlyph[widget.pageNumber]}\u005C",
-                                  style: TextStyle(
-                                      fontSize: 22,
-                                      color: widget.themeModeAdaption
-                                          ? IconTheme.of(context).color
-                                          : widget.topBarTextColor,
-                                      fontFamily: widget.fontFamilyName),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : const SizedBox(),
-            SizedBox(
-              width: containerW,
-              height: normalDispH,
-              child: Stack(
-                children: [
-                  Positioned(
-                    left: (containerW - normalDispW) / 2,
-                    top: 0,
-                    width: normalDispW,
-                    height: normalDispH,
-                    child: Image.asset(
-                      '${widget.pageImagePath}${widget.pageNumber}.png',
-                      fit: BoxFit.contain,
-                      color: widget.themeModeAdaption
-                          ? IconTheme.of(context).color
-                          : widget.quranTextColor,
-                    ),
-                  ),
-                  for (final s in _segments)
-                    Positioned(
-                      left:
-                          (containerW - normalDispW) / 2 + s.minX * normalScale,
-                      top: s.minY * normalScale,
-                      width: s.width * normalScale,
-                      height: s.height * normalScale,
-                      child: GestureDetector(
-                        onLongPress: () {
-                          final key = '${s.sura}_${s.ayah}';
-                          setState(() {
-                            _selectedAyahKey =
-                                _selectedAyahKey == key ? null : key;
-                          });
-                          if (widget.onAyahTap != null) {
-                            widget.onAyahTap!(
-                                s.sura, s.ayah, widget.pageNumber);
-                          }
-                        },
-                        child: Stack(
-                          children: [
-                            AnimatedOpacity(
-                              opacity: widget.debuggingMode
-                                  ? 1.0
-                                  : (_selectedAyahKey == '${s.sura}_${s.ayah}'
-                                      ? 1.0
-                                      : 0.0),
-                              duration: widget.highlightDuration,
-                              curve: Curves.easeInOut,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: widget.debuggingMode
-                                      ? Colors.red.withOpacity(.22)
-                                      : widget.highlightColor.withOpacity(.22),
-                                  border: Border.all(
-                                    color: widget.debuggingMode
-                                        ? Colors.red.withOpacity(.5)
-                                        : (_selectedAyahKey ==
-                                                '${s.sura}_${s.ayah}'
-                                            ? widget.highlightColor
-                                                .withOpacity(.5)
-                                            : Colors.transparent),
-                                    width: 1,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Container(color: Colors.transparent),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            widget.showPageNumber
-                ? SizedBox(
-                    height: bottomTextHeight,
-                    child: Align(
-                      alignment: widget.pageNumber % 2 == 0
-                          ? Alignment.bottomLeft
-                          : Alignment.bottomRight,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: widget.pageNumber % 2 == 0
-                              ? CrossAxisAlignment.start
-                              : CrossAxisAlignment.end,
-                          children: [
-                            (() {
-                              // Helper to build the quarter text widgets
-                              List<Widget> quarterWidgets = [];
-                              if (widget.quarters != null &&
-                                  widget.quarters!.isNotEmpty) {
-                                for (int q in widget.quarters!) {
-                                  quarterWidgets.add(
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 6),
-                                      child: Text(
-                                        _getQuarterDetail(q),
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: widget.themeModeAdaption
-                                              ? IconTheme.of(context).color
-                                              : widget.pageNumberColor,
-                                        ),
-                                        textDirection: TextDirection.rtl,
-                                      ),
-                                    ),
-                                  );
-                                }
-                              }
-
-                              if (widget.pageNumberDesign ==
-                                  PageNumberDesign.none) {
-                                return Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: widget.pageNumber % 2 == 0
-                                      ? CrossAxisAlignment.start
-                                      : CrossAxisAlignment.end,
-                                  children: [
-                                    ...quarterWidgets,
-                                    Text(
-                                      ArabicNumbers()
-                                          .convert(widget.pageNumber)
-                                          .toString(),
-                                      style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: widget.themeModeAdaption
-                                              ? IconTheme.of(context).color
-                                              : widget.pageNumberColor),
-                                      textDirection: TextDirection.rtl,
-                                    ),
-                                  ],
-                                );
-                              }
-
-                              final bool isDark =
-                                  Theme.of(context).brightness ==
-                                      Brightness.dark;
-
-                              // Effective colors
-                              final Color effectiveBg =
-                                  widget.pageNumberBackgroundColor ??
-                                      (widget.themeModeAdaption
-                                          ? (isDark
-                                              ? Colors.white.withOpacity(0.12)
-                                              : Colors.black.withOpacity(0.06))
-                                          : widget.pageNumberColor
-                                              .withOpacity(0.06));
-
-                              final Color effectiveBorder =
-                                  widget.pageNumberBorderColor ??
-                                      (widget.themeModeAdaption
-                                          ? (isDark
-                                              ? Colors.white24
-                                              : Colors.black12)
-                                          : widget.pageNumberColor
-                                              .withOpacity(0.15));
-
-                              BoxDecoration deco;
-                              switch (widget.pageNumberDesign) {
-                                case PageNumberDesign.pill:
-                                  deco = BoxDecoration(
-                                    color: effectiveBg,
-                                    borderRadius: BorderRadius.circular(24),
-                                    border: Border.all(color: effectiveBorder),
-                                  );
-                                  break;
-                                case PageNumberDesign.classic:
-                                  deco = BoxDecoration(
-                                    color: effectiveBg,
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(color: effectiveBorder),
-                                  );
-                                  break;
-                                case PageNumberDesign.glass:
-                                  deco = BoxDecoration(
-                                    color: isDark
-                                        ? Colors.white.withOpacity(0.12)
-                                        : Colors.white.withOpacity(0.35),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                        color: Colors.white.withOpacity(0.2)),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.04),
-                                        blurRadius: 8,
-                                      )
-                                    ],
-                                  );
-                                  break;
-                                case PageNumberDesign.outlined:
-                                default:
-                                  deco = BoxDecoration(
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
-                                        color: widget.pageNumberBorderColor ??
-                                            (widget.themeModeAdaption
-                                                ? (isDark
-                                                    ? Colors.white70
-                                                    : Colors.black54)
-                                                : widget.pageNumberColor)),
-                                  );
-                                  break;
-                              }
-
-                              return IntrinsicWidth(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 8),
-                                  decoration: deco,
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      ...quarterWidgets,
-                                      Text(
-                                        ArabicNumbers()
-                                            .convert(widget.pageNumber)
-                                            .toString(),
-                                        style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: widget.themeModeAdaption
-                                                ? IconTheme.of(context).color
-                                                : widget.pageNumberColor),
-                                        textDirection: TextDirection.rtl,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }()),
-                          ],
-                        ),
-                      ),
-                    ),
-                  )
-                : const SizedBox(),
-          ],
-        ),
+          // Ayah menu overlay
+          if (_isAyahMenuVisible) _buildAyahMenu(),
+        ],
       );
     });
   }

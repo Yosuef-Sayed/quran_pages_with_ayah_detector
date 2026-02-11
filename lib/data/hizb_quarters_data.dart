@@ -3,7 +3,7 @@
 /// for the "Classic Madani Mushaf" (1405H print).
 const List<List<int>> hizbQuartersData = [
   [0, 0],
-  [1, 1],
+  [0, 0],
   [2, 25],
   [2, 38],
   [2, 58],
