@@ -2,6 +2,12 @@
 
 ## Initial Releases
 
+## 1.2.1
+
+- **Selection Sheet Improvements**:
+  - Fixed text direction for Surah and Juz names in the selection sheet.
+  - Added "Surah", "Juz", and "Page" labels for better context.
+
 ## 1.2.0
 
 - **Enhanced Page Scrubbing**:
