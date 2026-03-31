@@ -1001,7 +1001,7 @@ class _QuranPageViewState extends State<QuranPageView>
                                                         return Column(
                                                           crossAxisAlignment:
                                                               CrossAxisAlignment
-                                                                  .end,
+                                                                  .start,
                                                           children: [
                                                             Text(
                                                               "${_getSurahGlyph(s)}\u005C",
@@ -2304,6 +2304,7 @@ class _QuranPageState extends State<_QuranPage> {
                                                   : widget.topBarTextColor,
                                               fontFamily:
                                                   widget.fontFamilyName),
+                                          textDirection: TextDirection.ltr,
                                         ),
                                       ),
                                     ),
@@ -2535,6 +2536,7 @@ class _QuranPageState extends State<_QuranPage> {
                                               ? IconTheme.of(context).color
                                               : widget.topBarTextColor,
                                           fontFamily: widget.fontFamilyName),
+                                      textDirection: TextDirection.ltr,
                                     ),
                                   ),
                                 ),
