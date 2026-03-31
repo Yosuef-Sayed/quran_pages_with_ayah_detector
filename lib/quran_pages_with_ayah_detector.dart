@@ -185,6 +185,9 @@ class QuranPageView extends StatefulWidget {
   /// Callback function triggered when the Juz number in the top bar is tapped.
   final void Function()? onJuzNumberTap;
 
+  /// Whether to reverse the page view.
+  final bool isReversed;
+
   /// The color used to highlight the selected or tapped ayah.
   final Color highlightColor;
 
@@ -325,6 +328,7 @@ class QuranPageView extends StatefulWidget {
     this.onAyahTap,
     this.onSuraNameTap,
     this.onJuzNumberTap,
+    this.isReversed = true,
     this.pageImagePath = "assets/pages/",
     this.fontFamilyName = "suraNameFont",
     this.debuggingMode = false,
@@ -1008,6 +1012,9 @@ class _QuranPageViewState extends State<QuranPageView>
                                                                 color:
                                                                     effectiveResultTextColor,
                                                               ),
+                                                              textDirection:
+                                                                  TextDirection
+                                                                      .ltr,
                                                             ),
                                                             Text(
                                                               detailStr,
@@ -1065,7 +1072,7 @@ class _QuranPageViewState extends State<QuranPageView>
           child: PageView.builder(
             controller: _pageController,
             itemCount: 604,
-            reverse: true,
+            reverse: widget.isReversed ? true : false,
             itemBuilder: (c, i) {
               final page = i + 1;
               return _QuranPage(
@@ -1889,7 +1896,7 @@ class _QuranPageState extends State<_QuranPage> {
 
       // Draw background
       final paint = Paint()..color = Colors.white;
-      canvas.drawRect(Rect.fromLTWH(0, 0, width, 2000), paint);
+      canvas.drawRect(const Rect.fromLTWH(0, 0, width, 2000), paint);
 
       // Draw surah name container (ornament)
       final containerPainter = TextPainter(

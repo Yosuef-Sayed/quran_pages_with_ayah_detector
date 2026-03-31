@@ -71,9 +71,11 @@ This will:
 
 Should look like that in your project after installing the package & required assets:
 
-![Preview](screenshot_1.png)
-![Preview](screenshot_2.png)
-![Preview](screenshot_3.png)
+<p align="center">
+  <img src="screenshot_1.png" width="32%" />
+  <img src="screenshot_2.png" width="32%" />
+  <img src="screenshot_3.png" width="32%" />
+</p>
 
 ## Usage
 
