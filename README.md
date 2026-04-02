@@ -34,7 +34,7 @@ Add the dependency to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  quran_pages_with_ayah_detector: ^1.2.0
+  quran_pages_with_ayah_detector: ^1.2.2
 ```
 
 or use
@@ -171,7 +171,3 @@ The `QuranPageView` offers extensive customization options for colors and layout
 | `pageNumberBorderColor`              | `null`                      | Border color for page number container.                                                      |
 | `pageNumberScrubbingTextColor`       | `Colors.white`              | Text color for the scrubbing overlay.                                                        |
 | `pageNumberScrubbingBackgroundColor` | `null`                      | Background color for the scrubbing overlay.                                                  |
-| `popupBackgroundColor`               | `null`                      | Background color for the page preview popup.                                                 |
-| `popupTextColor`                     | `null`                      | Text color for the page preview popup.                                                       |
-| `popupWidth`                         | `null`                      | Custom width for the page preview popup.                                                     |
-| `popupHeight`                        | `null`                      | Custom height for the page preview popup.                                                    |

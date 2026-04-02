@@ -2,6 +2,14 @@
 
 ## Initial Releases
 
+## 1.2.2
+
+- **Advanced Ayah Action Sheet**:
+  - Fixed coloring attributes.
+  - Added control for nonQuranic font.
+  - Added access controller for initPage.
+  - Added "Copy Verse with Reference" action to copy the verse text with the surah and ayah numbers.
+
 ## 1.2.1
 
 - **Selection Sheet Improvements**:

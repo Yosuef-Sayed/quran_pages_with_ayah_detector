@@ -128,6 +128,9 @@ class QuranPageController {
     _state?._closeSearch();
   }
 
+  /// Returns the current page index (1-604).
+  int get currentPage => _state?._currentPage ?? 0;
+
   /// Navigates to a specific page (1-604).
   void jumpToPage(int page) {
     _state?._jumpToPage(page);
@@ -291,12 +294,6 @@ class QuranPageView extends StatefulWidget {
   /// If null, defaults to [pageNumberBackgroundColor] or black.
   final Color? pageNumberScrubbingBackgroundColor;
 
-  /// Custom background color for the popup.
-  final Color? popupBackgroundColor;
-
-  /// Custom text color for the popup.
-  final Color? popupTextColor;
-
   /// Custom width for the popup.
   final double? popupWidth;
 
@@ -321,6 +318,24 @@ class QuranPageView extends StatefulWidget {
   /// List of custom action options to add to the ayah menu.
   /// These will be displayed alongside the default "Copy" and "Save Image" options.
   final List<AyahActionOption> customAyahActions;
+
+  /// Whether to show the default ayah menu options (Copy, Save Image).
+  final bool showDefaultAyahMenu;
+
+  /// The font family used for the normal text inside the whole app.
+  final String? nonQuranFont;
+
+  /// The initial page number to display (1-604).
+  final int initialPage;
+
+  /// Callback function that is invoked when the user scrolls to a new page.
+  ///
+  /// The [pageNumber] parameter represents the 1-based index of the page that
+  /// the user has scrolled to.
+  ///
+  /// This callback is useful for synchronizing other UI elements (such as a
+  /// bottom navigation bar or a page indicator) with the current page.
+  final void Function(int pageNumber)? onPageChanged;
 
   /// Creates a [QuranPageView] with customizable behavior and styling.
   const QuranPageView({
@@ -370,8 +385,6 @@ class QuranPageView extends StatefulWidget {
     this.pageNumberScrubbingBackgroundColor,
     this.pageNumberScrubbingTextColor,
     this.pageNumberBorderColor,
-    this.popupBackgroundColor,
-    this.popupTextColor,
     this.popupWidth,
     this.popupHeight,
     this.ayahMenuBackgroundColor = Colors.white,
@@ -380,7 +393,11 @@ class QuranPageView extends StatefulWidget {
     this.ayahMenuIconColor = Colors.blue,
     this.ayahMenuDividerColor = const Color(0xFFE0E0E0),
     this.customAyahActions = const [],
+    this.showDefaultAyahMenu = true,
+    this.nonQuranFont = "nonQuranFont",
+    this.onPageChanged,
     this.controller,
+    this.initialPage = 0,
   });
 
   @override
@@ -419,6 +436,13 @@ class _QuranPageViewState extends State<QuranPageView>
   /// A map that caches which quarters of a hizb start on each page.
   final Map<int, List<int>> _pageToQuarters = {};
 
+  int get _currentPage {
+    if (_pageController.hasClients) {
+      return _pageController.page!.round();
+    }
+    return widget.initialPage;
+  }
+
   late AnimationController _scrubController;
   late Animation<double> _scrubScaleAnimation;
   late Animation<double> _scrubOpacityAnimation;
@@ -428,7 +452,7 @@ class _QuranPageViewState extends State<QuranPageView>
   /// Initializes the page controller and builds the search location map.
   void initState() {
     super.initState();
-    _pageController = PageController();
+    _pageController = PageController(initialPage: widget.initialPage);
     widget.controller?._attach(this);
     _buildPageAyahMap();
     _buildSurasStartingOnPageMap();
@@ -576,6 +600,7 @@ class _QuranPageViewState extends State<QuranPageView>
             fontSize: 16,
             fontWeight: FontWeight.bold,
             color: color,
+            fontFamily: widget.nonQuranFont,
           ),
           textDirection: TextDirection.rtl,
         ),
@@ -730,11 +755,22 @@ class _QuranPageViewState extends State<QuranPageView>
     final Color effectiveGroupTitleColor = widget.themeModeAdaption
         ? (isDark ? Colors.white70 : Colors.black87)
         : widget.selectionResultGroupTitleColor;
-    final Color effectiveSearchFieldBg = widget.themeModeAdaption
+    final Color effectiveIconsColor = widget.themeModeAdaption
+        ? (isDark ? Colors.white : Colors.black)
+        : widget.searchSheetIconsColor;
+    final Color effectiveFieldHintColor = widget.themeModeAdaption
         ? (isDark
-            ? widget.selectionSearchFieldDarkBackgroundColor
-            : widget.selectionSearchFieldBackgroundColor)
-        : widget.selectionSearchFieldBackgroundColor;
+            ? Colors.white.withOpacity(0.5)
+            : Colors.black.withOpacity(0.5))
+        : widget.searchFieldHintTextColor;
+    final Color effectiveFieldTextColor = widget.themeModeAdaption
+        ? (isDark ? Colors.white : Colors.black)
+        : widget.searchFieldTextColor;
+    final Color effectiveFieldBg = widget.themeModeAdaption
+        ? (isDark
+            ? widget.searchFieldDarkBackgroundColor
+            : widget.searchFieldBackgroundColor)
+        : widget.searchFieldBackgroundColor;
     final Color effectiveHandleColor = widget.searchFieldHandleColor;
 
     showModalBottomSheet(
@@ -821,18 +857,17 @@ class _QuranPageViewState extends State<QuranPageView>
                               });
                             },
                             textDirection: TextDirection.rtl,
-                            style: TextStyle(color: effectiveResultTextColor),
+                            style: TextStyle(color: effectiveFieldTextColor),
                             decoration: InputDecoration(
                               hintText: widget.selectionSearchHintText,
                               hintTextDirection: TextDirection.rtl,
                               hintStyle: TextStyle(
-                                  color: effectiveResultTextColor
-                                      .withOpacity(0.5)),
+                                  color:
+                                      effectiveFieldHintColor.withOpacity(0.5)),
                               prefixIcon: Icon(Icons.search,
-                                  color: effectiveResultTextColor
-                                      .withOpacity(0.5)),
+                                  color: effectiveIconsColor.withOpacity(0.5)),
                               filled: true,
-                              fillColor: effectiveSearchFieldBg,
+                              fillColor: effectiveFieldBg,
                               contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 16, vertical: 8),
                               border: OutlineInputBorder(
@@ -970,6 +1005,8 @@ class _QuranPageViewState extends State<QuranPageView>
                                                 decoration: BoxDecoration(
                                                   color: isHighlighted
                                                       ? effectiveHighlightColor
+                                                          .withValues(
+                                                              alpha: 0.25)
                                                       : Colors.transparent,
                                                   border: Border(
                                                       bottom: BorderSide(
@@ -1023,6 +1060,8 @@ class _QuranPageViewState extends State<QuranPageView>
                                                                 color: effectiveResultTextColor
                                                                     .withOpacity(
                                                                         0.6),
+                                                                fontFamily: widget
+                                                                    .nonQuranFont,
                                                               ),
                                                             ),
                                                           ],
@@ -1030,11 +1069,13 @@ class _QuranPageViewState extends State<QuranPageView>
                                                       },
                                                     ),
                                                     Text(
-                                                      'صفحة ${ArabicNumbers().convert(suraAyahToPage[s]?[1] ?? 1)}',
+                                                      'صفحة  ${ArabicNumbers().convert(suraAyahToPage[s]?[1] ?? 1)}',
                                                       style: TextStyle(
                                                         fontSize: 13,
                                                         color:
                                                             effectiveResultInfoColor,
+                                                        fontFamily:
+                                                            widget.nonQuranFont,
                                                       ),
                                                     ),
                                                   ],
@@ -1073,6 +1114,7 @@ class _QuranPageViewState extends State<QuranPageView>
             controller: _pageController,
             itemCount: 604,
             reverse: widget.isReversed ? true : false,
+            onPageChanged: widget.onPageChanged,
             itemBuilder: (c, i) {
               final page = i + 1;
               return _QuranPage(
@@ -1127,6 +1169,8 @@ class _QuranPageViewState extends State<QuranPageView>
                 ayahMenuIconColor: widget.ayahMenuIconColor,
                 ayahMenuDividerColor: widget.ayahMenuDividerColor,
                 customAyahActions: widget.customAyahActions,
+                showDefaultAyahMenu: widget.showDefaultAyahMenu,
+                nonQuranFont: widget.nonQuranFont,
               );
             },
           ),
@@ -1161,7 +1205,7 @@ class _QuranPageViewState extends State<QuranPageView>
                         child: Material(
                           elevation: 6.0,
                           borderRadius: BorderRadius.circular(25),
-                          color: widget.popupBackgroundColor ??
+                          color: widget.pageNumberScrubbingBackgroundColor ??
                               (widget.themeModeAdaption &&
                                       Theme.of(context).brightness ==
                                           Brightness.dark
@@ -1181,9 +1225,9 @@ class _QuranPageViewState extends State<QuranPageView>
                                 style: TextStyle(
                                   fontSize: 22,
                                   fontWeight: FontWeight.bold,
-                                  color: widget.popupTextColor ??
-                                      widget.pageNumberScrubbingTextColor ??
+                                  color: widget.pageNumberScrubbingTextColor ??
                                       Colors.white,
+                                  fontFamily: widget.nonQuranFont,
                                 ),
                               ),
                             ),
@@ -1427,8 +1471,8 @@ class _QuranPageViewState extends State<QuranPageView>
                                   setState(() {
                                     _isSearchOpen = false;
                                     _searchResults = [];
-                                    _highlightedAyahKey = null;
-                                    _highlightedPage = null;
+                                    _highlightedAyahKey = '${surahNum}_1';
+                                    _highlightedPage = page;
                                   });
                                 }
                                 _pageController.jumpToPage(page - 1);
@@ -1453,12 +1497,14 @@ class _QuranPageViewState extends State<QuranPageView>
                                         fontSize: 24,
                                         color: effectiveResultTextColor,
                                       ),
+                                      textDirection: TextDirection.ltr,
                                     ),
                                     Text(
-                                      'صفحة ${ArabicNumbers().convert(page)}',
+                                      'صفحة  ${ArabicNumbers().convert(page)}',
                                       style: TextStyle(
                                         fontSize: 14,
                                         color: effectiveResultInfoColor,
+                                        fontFamily: widget.nonQuranFont,
                                       ),
                                     ),
                                   ],
@@ -1518,12 +1564,14 @@ class _QuranPageViewState extends State<QuranPageView>
                                                     widget.fontFamilyName,
                                                 color: effectiveResultInfoColor,
                                               ),
+                                              textDirection: TextDirection.ltr,
                                             ),
                                             Text(
-                                              'صفحة ${ArabicNumbers().convert(page)}',
+                                              'صفحة  ${ArabicNumbers().convert(page)}',
                                               style: TextStyle(
                                                 fontSize: 13,
                                                 color: effectiveResultInfoColor,
+                                                fontFamily: widget.nonQuranFont,
                                               ),
                                             ),
                                           ],
@@ -1643,6 +1691,12 @@ class _QuranPage extends StatefulWidget {
   /// List of custom action options for the ayah menu.
   final List<AyahActionOption> customAyahActions;
 
+  /// Whether to show the default ayah menu.
+  final bool showDefaultAyahMenu;
+
+  /// The font family used for normal text.
+  final String? nonQuranFont;
+
   /// Creates a [_QuranPage] with the given configuration.
   const _QuranPage({
     required this.pageNumber,
@@ -1676,6 +1730,8 @@ class _QuranPage extends StatefulWidget {
     required this.ayahMenuIconColor,
     required this.ayahMenuDividerColor,
     required this.customAyahActions,
+    required this.showDefaultAyahMenu,
+    required this.nonQuranFont,
   });
 
   @override
@@ -1820,170 +1876,384 @@ class _QuranPageState extends State<_QuranPage> {
     }
   }
 
-  /// Copies the ayah text to clipboard.
-  Future<void> _copyAyahToClipboard(int surah, int ayah) async {
-    final text = _getAyahText(surah, ayah);
-    if (text.isNotEmpty) {
-      await Clipboard.setData(ClipboardData(text: text));
+  /// Gets the QFC text for an ayah on its specific page.
+  Future<String> _getAyahQfcText(int surah, int ayah) async {
+    final page = suraAyahToPage[surah]?[ayah] ?? 1;
+    await FontManager.loadFont(page);
+    if (page >= 1 && page <= quranTextData.length) {
+      final pageLines = quranTextData[page - 1];
+      final Set<String> seen = {};
+      final List<Map<String, int>> pageAyahs = [];
+      for (final row in ayahRows) {
+        if (row['page_number'] == page) {
+          final s = row['sura_number'] as int;
+          final a = row['ayah_number'] as int;
+          final key = '$s:$a';
+          if (!seen.contains(key)) {
+            seen.add(key);
+            pageAyahs.add({'surah': s, 'ayah': a});
+          }
+        }
+      }
+      pageAyahs.sort((a, b) {
+        if (a['surah'] != b['surah']) return a['surah']!.compareTo(b['surah']!);
+        return a['ayah']!.compareTo(b['ayah']!);
+      });
+      final index =
+          pageAyahs.indexWhere((e) => e['surah'] == surah && e['ayah'] == ayah);
+      if (index != -1 && index < pageLines.length) return pageLines[index];
     }
-    _hideAyahMenu();
+    return '';
   }
 
-  /// Saves the ayah as an image with surah header.
-  /// Saves the ayah as an image with surah header.
-  Future<void> _saveAyahAsImage(int surah, int ayah) async {
+  /// Copies a range of ayahs to clipboard.
+  Future<void> _copyAyahRangeToClipboard(int surah, int start, int end) async {
+    List<String> lines = [];
+    for (int i = start; i <= end; i++) {
+      final text = _getAyahText(surah, i);
+      if (text.isNotEmpty) {
+        lines.add("$text \uFD3F${ArabicNumbers().convert(i)}\uFD3E");
+      }
+    }
+    if (lines.isNotEmpty) {
+      await Clipboard.setData(ClipboardData(text: lines.join(" ")));
+    }
+  }
+
+  /// Saves a range of ayahs as an image.
+  Future<void> _saveAyahRangeAsImage(
+      int surah, int start, int end, Color bgColor, Color textColor) async {
     try {
-      // 1. Get correct page for the ayah to determine font and QFC text
-      // We need the page where the ayah is located to get the correct QFC text.
-      final page = suraAyahToPage[surah]?[ayah] ?? 1;
-
-      // 2. Load the QFC font for that page
-      await FontManager.loadFont(page);
-      final ayahFontFamily = 'QCF_P${page.toString().padLeft(3, '0')}';
-
-      // 3. Get the QFC text
-      // We implement the lookup manually by reconstructing the page's ayah list
-      String ayahText = '';
-      if (page >= 1 && page <= quranTextData.length) {
-        final pageLines = quranTextData[page - 1];
-
-        // Filter ayahRows (List<Map>) to get unique ayahs for this page
-        final Set<String> seen = {};
-        final List<Map<String, int>> pageAyahs = [];
-
-        for (final row in ayahRows) {
-          if (row['page_number'] == page) {
-            final s = row['sura_number'] as int;
-            final a = row['ayah_number'] as int;
-            final key = '$s:$a';
-            if (!seen.contains(key)) {
-              seen.add(key);
-              pageAyahs.add({'surah': s, 'ayah': a});
-            }
-          }
-        }
-
-        // Sort to match reading order (Surah then Ayah)
-        pageAyahs.sort((a, b) {
-          if (a['surah'] != b['surah']) {
-            return a['surah']!.compareTo(b['surah']!);
-          }
-          return a['ayah']!.compareTo(b['ayah']!);
-        });
-
-        // Find index of the unique ayah
-        final index = pageAyahs
-            .indexWhere((e) => e['surah'] == surah && e['ayah'] == ayah);
-
-        if (index != -1 && index < pageLines.length) {
-          ayahText = pageLines[index];
+      List<({String text, String font})> ayahItems = [];
+      for (int i = start; i <= end; i++) {
+        final page = suraAyahToPage[surah]?[i] ?? 1;
+        final qfc = await _getAyahQfcText(surah, i);
+        if (qfc.isNotEmpty) {
+          ayahItems.add(
+              (text: qfc, font: 'QCF_P${page.toString().padLeft(3, '0')}'));
         }
       }
+      if (ayahItems.isEmpty) return;
 
-      if (ayahText.isEmpty) {
-        _hideAyahMenu();
-        return;
-      }
-
-      // 4. Get Surah Name Glyph (Use the start page of the Surah)
       final surahGlyphChar = imageSuraGlyph[surah] ?? '';
-
-      // Create a custom painter to render the image
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
       const width = 800.0;
       const padding = 50.0;
 
-      // Draw background
-      final paint = Paint()..color = Colors.white;
-      canvas.drawRect(const Rect.fromLTWH(0, 0, width, 2000), paint);
+      final bgPaint = Paint()..color = bgColor;
+      canvas.drawRect(const Rect.fromLTWH(0, 0, width, 5000), bgPaint);
 
-      // Draw surah name container (ornament)
       final containerPainter = TextPainter(
         text: TextSpan(
           text: '\u00F2',
           style: TextStyle(
-            fontFamily: widget.fontFamilyName, // Use the app's decorative font
-            fontSize: 80,
-            color: Colors.black,
-          ),
+              fontFamily: widget.fontFamilyName,
+              fontSize: 80,
+              color: textColor),
         ),
         textDirection: TextDirection.rtl,
       );
       containerPainter.layout(maxWidth: width - padding * 2);
-      final containerX = (width - containerPainter.width) / 2;
-      containerPainter.paint(canvas, Offset(containerX, (padding - 40)));
+      containerPainter.paint(
+          canvas, Offset((width - containerPainter.width) / 2, padding - 40));
 
-      // Draw surah name on top of the container
       final namePainter = TextPainter(
         text: TextSpan(
           text: "\u005C$surahGlyphChar",
           style: TextStyle(
-            fontFamily: widget.fontFamilyName,
-            fontSize: 50,
-            color: Colors.black,
-          ),
+              fontFamily: widget.fontFamilyName,
+              fontSize: 50,
+              color: textColor),
         ),
         textDirection: TextDirection.rtl,
       );
       namePainter.layout(maxWidth: width - padding * 2);
-      final nameX = (width - namePainter.width) / 2;
-      namePainter.paint(canvas, Offset(nameX, padding));
+      namePainter.paint(
+          canvas, Offset((width - namePainter.width) / 2, padding));
 
-      // Draw ayah text with QFC font
-      final ayahY =
+      double currentY =
           padding + max(containerPainter.height, namePainter.height) + 50;
-      final ayahPainter = TextPainter(
-        text: TextSpan(
-          text: ayahText,
+
+      List<TextSpan> spans = [];
+      for (var item in ayahItems) {
+        spans.add(TextSpan(
+          text: item.text.replaceAll('\n', ' ').replaceAll('\r', '').trim() +
+              (item == ayahItems.last ? '' : ' '),
           style: TextStyle(
-            fontFamily: ayahFontFamily, // Use the correct QFC page font
-            fontSize: 49,
-            color: Colors.black,
-            height: 1.8,
-          ),
-        ),
+              fontFamily: item.font,
+              fontSize: 49,
+              color: textColor,
+              height: 1.8),
+        ));
+      }
+
+      final ayahPainter = TextPainter(
+        text: TextSpan(children: spans),
         textDirection: TextDirection.rtl,
         textAlign: TextAlign.center,
       );
       ayahPainter.layout(maxWidth: width - padding * 2);
-      final ayahX = (width - ayahPainter.width) / 2;
-      ayahPainter.paint(canvas, Offset(ayahX, (ayahY - 80)));
+      ayahPainter.paint(
+          canvas, Offset((width - ayahPainter.width) / 2, currentY - 80));
+      currentY += ayahPainter.height;
 
-      // Calculate final height
-      final finalHeight = (ayahY + ayahPainter.height + padding) - 100;
-
-      // Convert to image
+      final finalHeight = currentY + padding - 40;
       final picture = recorder.endRecording();
       final img = await picture.toImage(width.toInt(), finalHeight.toInt());
       final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
       final buffer = byteData!.buffer.asUint8List();
 
-      // Save to downloads/pictures directory for emulators and physical devices
       final directory = Platform.isAndroid
           ? Directory('/storage/emulated/0/Download/QuranPages')
           : await getDownloadsDirectory();
-
       if (directory != null && !await directory.exists()) {
         await directory.create(recursive: true);
       }
-
       final fileName =
-          'ayah_${surah}_${ayah}_${DateTime.now().millisecondsSinceEpoch}.png';
+          'ayah_${surah}_${start}_${end}_${DateTime.now().millisecondsSinceEpoch}.png';
       final file = File('${directory?.path}/$fileName');
       await file.writeAsBytes(buffer);
-
-      debugPrint('Image saved to: ${file.path}');
-    } on MissingPluginException catch (e) {
-      debugPrint('Error saving image: MissingPluginException. '
-          'This usually happens because the app needs to be fully rebuilt '
-          'after adding a new dependency (path_provider). '
-          'Please stop and restart your app. Error: $e');
     } catch (e) {
       debugPrint('Error saving image: $e');
-    } finally {
-      _hideAyahMenu();
     }
+  }
+
+  void _showAdvancedAyahActionSheet(
+      {required bool isImageMode,
+      required int initialSurah,
+      required int initialAyah}) {
+    int selectedSurah = initialSurah;
+    int startAyah = initialAyah;
+    int endAyah = initialAyah;
+    Color selectedBgColor = Colors.white;
+    Color selectedTextColor = Colors.black;
+
+    final isDark = widget.themeModeAdaption &&
+        Theme.of(context).brightness == Brightness.dark;
+    final effectiveBgColor = isDark
+        ? widget.ayahMenuDarkBackgroundColor
+        : widget.ayahMenuBackgroundColor;
+    final effectiveTextColor = widget.themeModeAdaption
+        ? (isDark ? Colors.white : Colors.black)
+        : widget.ayahMenuTextColor;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: effectiveBgColor,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            int totalAyahs = quran.getVerseCount(selectedSurah);
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                  20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                textDirection: TextDirection.rtl,
+                children: [
+                  Text(isImageMode ? 'حفظ الآيات كصورة' : 'نسخ الآيات',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: effectiveTextColor,
+                          fontFamily: widget.nonQuranFont)),
+                  const SizedBox(height: 20),
+                  _buildDropdownRow('السورة:', selectedSurah,
+                      List.generate(114, (i) => i + 1), (val) {
+                    setSheetState(() {
+                      selectedSurah = val!;
+                      startAyah = 1;
+                      endAyah = 1;
+                    });
+                  }, (val) => quran.getSurahNameArabic(val),
+                      effectiveTextColor),
+                  _buildDropdownRow('من آية:', startAyah,
+                      List.generate(totalAyahs, (i) => i + 1), (val) {
+                    setSheetState(() {
+                      startAyah = val!;
+                      if (endAyah < startAyah) endAyah = startAyah;
+                    });
+                  }, (val) => ArabicNumbers().convert(val), effectiveTextColor),
+                  _buildDropdownRow(
+                      'إلى آية:',
+                      endAyah,
+                      List.generate(
+                          totalAyahs - startAyah + 1, (i) => i + startAyah),
+                      (val) {
+                    setSheetState(() => endAyah = val!);
+                  }, (val) => ArabicNumbers().convert(val), effectiveTextColor),
+                  if (isImageMode) ...[
+                    const SizedBox(height: 15),
+                    _buildColorPicker('لون الخلفية:', selectedBgColor, (c) {
+                      setSheetState(() {
+                        selectedBgColor = c;
+                        if (c == Colors.white &&
+                            selectedTextColor == Colors.white) {
+                          selectedTextColor = Colors.black;
+                        }
+                        if (c == Colors.black &&
+                            selectedTextColor == Colors.black) {
+                          selectedTextColor = Colors.white;
+                        }
+                      });
+                    }, effectiveTextColor, false),
+                    _buildColorPicker('لون النص:', selectedTextColor, (c) {
+                      setSheetState(() {
+                        selectedTextColor = c;
+                        if (c == Colors.white &&
+                            selectedBgColor == Colors.white) {
+                          selectedBgColor = Colors.black;
+                        }
+                        if (c == Colors.black &&
+                            selectedBgColor == Colors.black) {
+                          selectedBgColor = Colors.white;
+                        }
+                      });
+                    }, effectiveTextColor, true),
+                  ],
+                  const SizedBox(height: 30),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        if (isImageMode) {
+                          _saveAyahRangeAsImage(selectedSurah, startAyah,
+                              endAyah, selectedBgColor, selectedTextColor);
+                        } else {
+                          _copyAyahRangeToClipboard(
+                              selectedSurah, startAyah, endAyah);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: widget.ayahMenuIconColor,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12))),
+                      child: Text(isImageMode ? 'حفظ' : 'نسخ',
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: widget.nonQuranFont)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDropdownRow(
+      String label,
+      int value,
+      List<int> items,
+      ValueChanged<int?> onChanged,
+      String Function(int) itemLabel,
+      Color textColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        textDirection: TextDirection.rtl,
+        children: [
+          SizedBox(
+              width: 80,
+              child: Text(label,
+                  style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: widget.nonQuranFont),
+                  textDirection: TextDirection.rtl)),
+          Expanded(
+            child: DropdownButton<int>(
+              value: value,
+              isExpanded: true,
+              dropdownColor: widget.themeModeAdaption &&
+                      Theme.of(context).brightness == Brightness.dark
+                  ? widget.ayahMenuDarkBackgroundColor
+                  : widget.ayahMenuBackgroundColor,
+              items: items
+                  .map((i) => DropdownMenuItem(
+                      value: i,
+                      child: Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(itemLabel(i),
+                              style: TextStyle(
+                                  color: textColor,
+                                  fontFamily: widget.nonQuranFont)))))
+                  .toList(),
+              onChanged: onChanged,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildColorPicker(String label, Color selected,
+      ValueChanged<Color> onSelect, Color textColor, bool isTextPalette) {
+    final bgColors = [
+      Colors.white,
+      Colors.black,
+      const Color(0xFFF5E6CA),
+      Colors.grey[200]!,
+      Colors.blue[100]!,
+      Colors.green[100]!
+    ];
+    final textColors = [
+      Colors.white,
+      Colors.black,
+      const Color(0xFF8B6B3D),
+      Colors.grey[800]!,
+      Colors.blue[900]!,
+      Colors.green[900]!
+    ];
+    final colors = isTextPalette ? textColors : bgColors;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        textDirection: TextDirection.rtl,
+        children: [
+          SizedBox(
+              width: 80,
+              child: Text(label,
+                  style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: widget.nonQuranFont),
+                  textDirection: TextDirection.rtl)),
+          Expanded(
+            child: Wrap(
+              spacing: 8,
+              children: colors
+                  .map((c) => GestureDetector(
+                        onTap: () => onSelect(c),
+                        child: Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                              color: c,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color: selected == c
+                                      ? widget.ayahMenuIconColor
+                                      : Colors.grey,
+                                  width: selected == c ? 2 : 1)),
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Shows the ayah action menu and highlights the ayah.
@@ -2028,18 +2298,32 @@ class _QuranPageState extends State<_QuranPage> {
         : widget.ayahMenuDividerColor;
 
     // Default options
-    final defaultOptions = [
-      {
-        'title': 'نسخ الآية',
-        'icon': Icons.copy,
-        'onTap': () => _copyAyahToClipboard(_menuSurah!, _menuAyah!),
-      },
-      {
-        'title': 'حفظ كصورة',
-        'icon': Icons.image,
-        'onTap': () => _saveAyahAsImage(_menuSurah!, _menuAyah!),
-      },
-    ];
+    final List<Map<String, dynamic>> defaultOptions = widget.showDefaultAyahMenu
+        ? [
+            {
+              'title': 'نسخ الآية',
+              'icon': Icons.copy,
+              'onTap': () {
+                int s = _menuSurah ?? 1;
+                int a = _menuAyah ?? 1;
+                _hideAyahMenu();
+                _showAdvancedAyahActionSheet(
+                    isImageMode: false, initialSurah: s, initialAyah: a);
+              },
+            },
+            {
+              'title': 'حفظ كصورة',
+              'icon': Icons.image,
+              'onTap': () {
+                int s = _menuSurah ?? 1;
+                int a = _menuAyah ?? 1;
+                _hideAyahMenu();
+                _showAdvancedAyahActionSheet(
+                    isImageMode: true, initialSurah: s, initialAyah: a);
+              },
+            },
+          ]
+        : [];
 
     return Positioned.fill(
       child: GestureDetector(
@@ -2105,6 +2389,7 @@ class _QuranPageState extends State<_QuranPage> {
                                       fontSize: 16,
                                       fontWeight: FontWeight.w500,
                                       color: effectiveTextColor,
+                                      fontFamily: widget.nonQuranFont,
                                     ),
                                     textDirection: TextDirection.rtl,
                                   ),
@@ -2159,6 +2444,7 @@ class _QuranPageState extends State<_QuranPage> {
                                       fontSize: 16,
                                       fontWeight: FontWeight.w500,
                                       color: effectiveTextColor,
+                                      fontFamily: widget.nonQuranFont,
                                     ),
                                     textDirection: TextDirection.rtl,
                                   ),
@@ -2410,6 +2696,7 @@ class _QuranPageState extends State<_QuranPage> {
                                               color: widget.themeModeAdaption
                                                   ? IconTheme.of(context).color
                                                   : widget.pageNumberColor,
+                                              fontFamily: widget.nonQuranFont,
                                             ),
                                             textDirection: TextDirection.rtl,
                                           ),
@@ -2446,7 +2733,8 @@ class _QuranPageState extends State<_QuranPage> {
                                             fontWeight: FontWeight.bold,
                                             color: widget.themeModeAdaption
                                                 ? IconTheme.of(context).color
-                                                : widget.pageNumberColor),
+                                                : widget.pageNumberColor,
+                                            fontFamily: widget.nonQuranFont),
                                         textDirection: TextDirection.rtl,
                                       ),
                                     ),
@@ -2651,6 +2939,7 @@ class _QuranPageState extends State<_QuranPage> {
                                               color: widget.themeModeAdaption
                                                   ? IconTheme.of(context).color
                                                   : widget.pageNumberColor,
+                                              fontFamily: widget.nonQuranFont,
                                             ),
                                             textDirection: TextDirection.rtl,
                                           ),
@@ -2678,7 +2967,8 @@ class _QuranPageState extends State<_QuranPage> {
                                               fontWeight: FontWeight.bold,
                                               color: widget.themeModeAdaption
                                                   ? IconTheme.of(context).color
-                                                  : widget.pageNumberColor),
+                                                  : widget.pageNumberColor,
+                                              fontFamily: widget.nonQuranFont),
                                           textDirection: TextDirection.rtl,
                                         ),
                                       ],
@@ -2781,7 +3071,9 @@ class _QuranPageState extends State<_QuranPage> {
                                                 color: widget.themeModeAdaption
                                                     ? IconTheme.of(context)
                                                         .color
-                                                    : widget.pageNumberColor),
+                                                    : widget.pageNumberColor,
+                                                fontFamily:
+                                                    widget.nonQuranFont),
                                             textDirection: TextDirection.rtl,
                                           ),
                                         ],
