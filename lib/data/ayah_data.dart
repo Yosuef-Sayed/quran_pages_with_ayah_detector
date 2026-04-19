@@ -5,7 +5,7 @@ library;
 
 /// A large dataset containing the coordinates (bounding boxes) for every ayah on every page.
 
-const List<Map<String, Object?>> ayahRows = [
+List<Map<String, Object?>> ayahRows = [
   {
     "page_number": 1,
     "line_number": 2,

@@ -1,7 +1,7 @@
 /// Mapping of 240 Rub el Hizb (quarters) to their starting Surah and Ayah.
 /// This list is derived strictly from the manual mapping provided by the user
 /// for the "Classic Madani Mushaf" (1405H print).
-const List<List<int>> hizbQuartersData = [
+List<List<int>> hizbQuartersData = [
   [0, 0],
   [0, 0],
   [2, 25],

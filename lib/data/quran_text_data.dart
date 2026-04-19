@@ -1,5 +1,5 @@
 /// The QFC (Quranic Font Code) representation of the Quranic text, organized by page.
-const List<List<String>> quranTextData = [
+List<List<String>> quranTextData = [
   ["ﭑﭒﭓﭔﭕ", "ﭖﭗﭘﭙﭚ", "ﭛﭜﭝ", "ﭞﭟﭠﭡ", "ﭢﭣﭤﭥﭦ", "ﭧﭨﭩﭪ", "ﭫﭬﭭﭮﭯﭰﭱﭲﭳﭴ"],
   ["ﭑﭒ", "ﭓﭔﭕﭖﭗﭘﭙﭚﭛﭜ", "ﭝﭞﭟﭠﭡﭢﭣﭤﭥ", "ﭦﭧﭨﭩﭪﭫﭬﭭﭮﭯﭰﭱﭲ", "ﭳﭴﭵﭶﭷﭸﭹﭺﭻﭼ"],
   [

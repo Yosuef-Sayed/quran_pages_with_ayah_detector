@@ -1,5 +1,5 @@
 /// Plain text representation of the Quranic verses for efficient searching.
-const List<Map<String, dynamic>> quranCleanPlain = [
+List<Map<String, dynamic>> quranCleanPlain = [
   {"surah_number": 1, "verse_number": 1, "content": "بسم الله الرحمن الرحيم"},
   {"surah_number": 1, "verse_number": 2, "content": "الحمد لله رب العلمين"},
   {"surah_number": 1, "verse_number": 3, "content": "الرحمن الرحيم"},

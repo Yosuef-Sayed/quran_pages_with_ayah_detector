@@ -144,6 +144,7 @@ If you encounter `MissingPluginException` for `path_provider`, please **perform 
   ```
   _(Note: For Android 10+, images are saved to the app's document directory if Downloads is inaccessible)._
 - **iOS/macOS**: No special permissions are required for saving to the Documents folder, but ensure you have rebuilt the app to link the `path_provider` plugin.
+<!-- <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" /> -->
 
 ## UI Customization
 
